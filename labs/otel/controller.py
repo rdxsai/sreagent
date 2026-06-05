@@ -1,6 +1,13 @@
 """Scenario control entrypoints for the OpenTelemetry Demo lab."""
 
+from __future__ import annotations
+
+import argparse
+
 from pathlib import Path
+
+from labs.otel.flagd import FlagdClient
+from labs.otel.source import start_command, stop_command, verify_source_checkout
 
 
 def record_scenario(config_path: Path, output_dir: Path) -> None:
@@ -11,3 +18,49 @@ def record_scenario(config_path: Path, output_dir: Path) -> None:
     """
 
     raise NotImplementedError("live OpenTelemetry Demo control is not wired yet")
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="OpenTelemetry Demo lab controller")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    doctor = subparsers.add_parser("doctor", help="verify a pinned demo checkout")
+    doctor.add_argument("demo_dir", type=Path)
+
+    subparsers.add_parser("start-command", help="print the verified start command")
+    subparsers.add_parser("stop-command", help="print the verified stop command")
+
+    flag_set = subparsers.add_parser("flag-set", help="set one raw flag variant")
+    flag_set.add_argument("raw_flag_key")
+    flag_set.add_argument("variant")
+    flag_set.add_argument("--base-url", default=None)
+
+    flag_reset = subparsers.add_parser("flag-reset", help="reset all flags to off")
+    flag_reset.add_argument("--base-url", default=None)
+
+    args = parser.parse_args(argv)
+    if args.command == "doctor":
+        report = verify_source_checkout(args.demo_dir)
+        print(f"root={report.root}")
+        print(f"git_sha={report.git_sha}")
+        print(f"missing_files={','.join(report.missing_files)}")
+        return 0 if report.passed else 1
+    if args.command == "start-command":
+        print(" ".join(start_command()))
+        return 0
+    if args.command == "stop-command":
+        print(" ".join(stop_command()))
+        return 0
+    if args.command == "flag-set":
+        client = FlagdClient(base_url=args.base_url) if args.base_url else FlagdClient()
+        client.set_flag_variant(args.raw_flag_key, args.variant)
+        return 0
+    if args.command == "flag-reset":
+        client = FlagdClient(base_url=args.base_url) if args.base_url else FlagdClient()
+        client.reset_all_flags()
+        return 0
+    raise AssertionError(f"unhandled command {args.command}")
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
