@@ -8,7 +8,7 @@ from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-from labs.otel.source import FLAGD_UI_BASE_URL
+from labs.otel.source import flagd_ui_base_url
 
 FlagDocument = dict[str, Any]
 
@@ -20,8 +20,8 @@ class FlagdControlError(RuntimeError):
 class FlagdClient:
     """Small client for the verified flagd-ui JSON API."""
 
-    def __init__(self, base_url: str = FLAGD_UI_BASE_URL, timeout_seconds: float = 10.0) -> None:
-        self.base_url = base_url.rstrip("/")
+    def __init__(self, base_url: str | None = None, timeout_seconds: float = 10.0) -> None:
+        self.base_url = (base_url or flagd_ui_base_url()).rstrip("/")
         self.timeout_seconds = timeout_seconds
 
     def read(self) -> FlagDocument:

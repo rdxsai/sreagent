@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -36,6 +37,9 @@ FRONTEND_PROXY_BASE_URL = "http://localhost:8080"
 FLAGD_UI_BASE_URL = f"{FRONTEND_PROXY_BASE_URL}/feature"
 PROMETHEUS_BASE_URL = "http://localhost:9090"
 JAEGER_UI_URL = f"{FRONTEND_PROXY_BASE_URL}/jaeger/ui"
+JAEGER_API_BASE_PATH = "/jaeger/ui/api"
+OPENSEARCH_CONTAINER_NAME = "opensearch"
+OPENSEARCH_CONTAINER_PORT = 9200
 
 
 @dataclass(frozen=True)
@@ -77,6 +81,48 @@ def start_command() -> list[str]:
 
 def stop_command() -> list[str]:
     return docker_compose_command("down", "--remove-orphans", "--volumes")
+
+
+def frontend_proxy_base_url() -> str:
+    return os.environ.get("SENTINEL_OTEL_FRONTEND_PROXY_BASE_URL", FRONTEND_PROXY_BASE_URL).rstrip("/")
+
+
+def flagd_ui_base_url() -> str:
+    return os.environ.get("SENTINEL_OTEL_FLAGD_UI_BASE_URL", f"{frontend_proxy_base_url()}/feature").rstrip("/")
+
+
+def prometheus_base_url() -> str:
+    return os.environ.get("SENTINEL_OTEL_PROMETHEUS_BASE_URL", PROMETHEUS_BASE_URL).rstrip("/")
+
+
+def docker_published_url(
+    container_name: str,
+    container_port: int,
+    *,
+    scheme: str = "http",
+) -> str:
+    return f"{scheme}://localhost:{docker_published_port(container_name, container_port)}"
+
+
+def docker_published_port(container_name: str, container_port: int) -> int:
+    try:
+        result = subprocess.run(
+            ["docker", "port", container_name, str(container_port)],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except (OSError, subprocess.CalledProcessError) as exc:
+        raise RuntimeError(f"could not read published port for {container_name}:{container_port}") from exc
+    return parse_docker_port(result.stdout)
+
+
+def parse_docker_port(output: str) -> int:
+    for line in output.splitlines():
+        _, _, port = line.rpartition(":")
+        if port.isdigit():
+            return int(port)
+    raise ValueError("docker port output did not contain a host port")
 
 
 def _git_sha(root: Path) -> str | None:

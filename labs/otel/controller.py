@@ -7,6 +7,7 @@ import argparse
 from pathlib import Path
 
 from labs.otel.flagd import FlagdClient
+from labs.otel.smoke import default_targets, smoke_check
 from labs.otel.source import start_command, stop_command, verify_source_checkout
 
 
@@ -38,6 +39,11 @@ def main(argv: list[str] | None = None) -> int:
     flag_reset = subparsers.add_parser("flag-reset", help="reset all flags to off")
     flag_reset.add_argument("--base-url", default=None)
 
+    smoke = subparsers.add_parser("smoke", help="smoke-check a running demo")
+    smoke.add_argument("--frontend-base-url", default=None)
+    smoke.add_argument("--prometheus-base-url", default=None)
+    smoke.add_argument("--opensearch-base-url", default=None)
+
     args = parser.parse_args(argv)
     if args.command == "doctor":
         report = verify_source_checkout(args.demo_dir)
@@ -59,6 +65,17 @@ def main(argv: list[str] | None = None) -> int:
         client = FlagdClient(base_url=args.base_url) if args.base_url else FlagdClient()
         client.reset_all_flags()
         return 0
+    if args.command == "smoke":
+        targets = default_targets(
+            frontend_base_url=args.frontend_base_url,
+            prometheus_url=args.prometheus_base_url,
+            opensearch_url=args.opensearch_base_url,
+        )
+        results = smoke_check(targets)
+        for result in results:
+            status = result.status_code if result.status_code is not None else "ERR"
+            print(f"{result.name} {status} {result.url}")
+        return 0 if all(result.ok for result in results) else 1
     raise AssertionError(f"unhandled command {args.command}")
 
 
