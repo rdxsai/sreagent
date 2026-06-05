@@ -1,0 +1,12 @@
+{"time":10,"service":"checkout","metric":"request_error_rate","value":0.01,"unit":"ratio","attributes":{"route":"/api/checkout"}}
+{"time":50,"service":"checkout","metric":"request_error_rate","value":0.01,"unit":"ratio","attributes":{"route":"/api/checkout"}}
+{"time":70,"service":"checkout","metric":"request_error_rate","value":0.18,"unit":"ratio","attributes":{"route":"/api/checkout"}}
+{"time":90,"service":"checkout","metric":"request_error_rate","value":0.23,"unit":"ratio","attributes":{"route":"/api/checkout"}}
+{"time":10,"service":"checkout","metric":"latency_p95_ms","value":112.0,"unit":"ms","attributes":{"route":"/api/checkout"}}
+{"time":50,"service":"checkout","metric":"latency_p95_ms","value":108.0,"unit":"ms","attributes":{"route":"/api/checkout"}}
+{"time":70,"service":"checkout","metric":"latency_p95_ms","value":390.0,"unit":"ms","attributes":{"route":"/api/checkout"}}
+{"time":90,"service":"checkout","metric":"latency_p95_ms","value":430.0,"unit":"ms","attributes":{"route":"/api/checkout"}}
+{"time":10,"service":"payment","metric":"request_error_rate","value":0.005,"unit":"ratio","attributes":{"operation":"charge"}}
+{"time":50,"service":"payment","metric":"request_error_rate","value":0.004,"unit":"ratio","attributes":{"operation":"charge"}}
+{"time":70,"service":"payment","metric":"request_error_rate","value":0.20,"unit":"ratio","attributes":{"operation":"charge"}}
+{"time":90,"service":"payment","metric":"request_error_rate","value":0.22,"unit":"ratio","attributes":{"operation":"charge"}}

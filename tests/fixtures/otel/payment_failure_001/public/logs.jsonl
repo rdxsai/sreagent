@@ -1,0 +1,2 @@
+{"time":72,"service":"checkout","severity":"ERROR","message":"dependency call failed","attributes":{"dependency":"payment","operation":"Charge"},"trace_id":"tr-pay-failure-1"}
+{"time":91,"service":"checkout","severity":"ERROR","message":"dependency call failed","attributes":{"dependency":"payment","operation":"Charge"},"trace_id":"tr-pay-failure-2"}

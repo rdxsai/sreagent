@@ -1,0 +1,14 @@
+{
+  "scenario_id": "payment_unreachable_001",
+  "source": "opentelemetry-demo",
+  "time_unit": "second",
+  "window": {
+    "start": 0,
+    "end": 120
+  },
+  "symptom": "Checkout failures increased during the recording window.",
+  "available_signals": ["metrics", "logs", "traces", "topology", "changes"],
+  "notes": [
+    "Feature flag names and private injection metadata are intentionally redacted."
+  ]
+}

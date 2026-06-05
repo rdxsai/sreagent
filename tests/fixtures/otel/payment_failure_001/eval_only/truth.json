@@ -1,0 +1,20 @@
+{
+  "scenario_id": "payment_failure_001",
+  "injection": {
+    "raw_flag_key": "paymentFailure",
+    "variant": "on",
+    "enabled_at_second": 60
+  },
+  "root_cause": {
+    "kind": "service",
+    "service": "payment",
+    "type": "payment_charge_failure"
+  },
+  "culprit_change_id": "chg_0103",
+  "expected_evidence": [
+    "payment charge errors rise after onset",
+    "checkout failures rise after payment errors",
+    "logs show checkout payment dependency errors"
+  ],
+  "decoy_change_ids": ["chg_0101", "chg_0102"]
+}

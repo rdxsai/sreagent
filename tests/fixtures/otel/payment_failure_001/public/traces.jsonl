@@ -1,0 +1,3 @@
+{"trace_id":"tr-pay-failure-1","span_id":"sp-1","parent_span_id":null,"time":72,"service":"checkout","operation":"PlaceOrder","duration_ms":801.0,"status":"ERROR","attributes":{"rpc.system":"grpc"}}
+{"trace_id":"tr-pay-failure-1","span_id":"sp-2","parent_span_id":"sp-1","time":72,"service":"payment","operation":"Charge","duration_ms":35.0,"status":"ERROR","attributes":{"rpc.system":"grpc"}}
+{"trace_id":"tr-pay-failure-2","span_id":"sp-3","parent_span_id":null,"time":91,"service":"checkout","operation":"PlaceOrder","duration_ms":880.0,"status":"ERROR","attributes":{"rpc.system":"grpc"}}

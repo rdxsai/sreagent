@@ -1,0 +1,21 @@
+{
+  "scenario_id": "payment_unreachable_001",
+  "injection": {
+    "raw_flag_key": "paymentUnreachable",
+    "variant": "on",
+    "enabled_at_second": 60
+  },
+  "root_cause": {
+    "kind": "edge",
+    "caller": "checkout",
+    "callee": "payment",
+    "type": "dependency_unreachable"
+  },
+  "culprit_change_id": "chg_0003",
+  "expected_evidence": [
+    "checkout error rate rises after onset",
+    "checkout spans to payment fail after onset",
+    "logs show checkout payment dependency errors"
+  ],
+  "decoy_change_ids": ["chg_0001", "chg_0002"]
+}
