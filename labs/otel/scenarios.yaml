@@ -1,0 +1,50 @@
+# Initial v1 scenario catalog for OpenTelemetry Demo recordings.
+#
+# This config is controller input and must not be passed to agent tools.
+
+scenarios:
+  - id: payment_unreachable_001
+    display_name: Checkout payment dependency unreachable
+    raw_flag_key: paymentUnreachable
+    variant: "on"
+    timing:
+      warmup_seconds: 180
+      injection_at_seconds: 300
+      recording_seconds: 900
+    workload:
+      profile: checkout_steady
+      users: 20
+      spawn_rate: 2
+    public:
+      symptom: Checkout failures increased during the recording window.
+      sanitized_change:
+        id: chg_0003
+        time: 300
+        service: checkout
+        kind: runtime_config_change
+        summary: payment dependency routing configuration changed
+        diff_touches:
+          - payment_client
+          - service_discovery
+      decoy_changes:
+        - id: chg_0001
+          time: 270
+          service: frontend
+          kind: deploy
+          summary: frontend copy and layout assets changed
+          diff_touches:
+            - copy
+            - layout_assets
+        - id: chg_0002
+          time: 285
+          service: recommendation
+          kind: runtime_config_change
+          summary: recommendation scoring parameter changed
+          diff_touches:
+            - scoring
+    truth:
+      root_cause:
+        kind: edge
+        caller: checkout
+        callee: payment
+        type: dependency_unreachable
