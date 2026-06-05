@@ -67,3 +67,7 @@ dmypy.json
 # OS files
 .DS_Store
 Thumbs.db
+
+# Benchmark fixture safety
+/fixtures/**/raw/
+/fixtures/**/eval_only/
