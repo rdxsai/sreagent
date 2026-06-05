@@ -1,3 +1,19 @@
 # Sentinel
 
-Sentinel is a production-shaped, autonomous SRE incident-response agent. Given an incident symptom (e.g. "checkout p99 latency spiked at 14:38"), an LLM-driven agent loop calls telemetry tools, forms and tests hypotheses, traces a root cause, and emits a structured incident report. The environment it investigates is simulated: a deterministic, tick-based world model where a dependency graph of services evolves each tick, faults perturb underlying state variables, and symptoms emerge and propagate via universal laws. A "three-layer seal" runs through the design: tools are dumb sensors that read the world and never see ground truth, which lives only in the eval layer. The code is laid out as `sentinel/` (the `sim` world model, `registry` of services and tools, `tools` sensors, `agent` loop, `api` FastAPI surface, `eval` scoring/ground truth, and `observability`), with `tests/` split into `unit` and `integration`.
+Sentinel is a production-shaped, autonomous SRE incident-response agent.
+Given an incident symptom, the agent will inspect telemetry, form and test
+hypotheses, trace root cause, and emit a structured incident report.
+
+v1 uses OpenTelemetry Demo as a recorded incident lab. A scenario controller
+enables one known built-in failure flag under steady workload, records metrics,
+logs, traces, topology, and change events, then writes replayable public
+fixtures plus private eval truth. The agent and tools receive only public
+fixtures. The eval harness is the only layer that reads private truth.
+
+The three-layer seal is the core benchmark rule:
+
+- scenario control records private injection metadata
+- public fixtures contain only observable, redacted telemetry
+- eval truth grades root-cause accuracy and is never passed to tools
+
+See `docs/open-telemetryspec.md` for the v1 fixture-lab contract.
