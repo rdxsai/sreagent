@@ -59,12 +59,25 @@ class JaegerTraceClient(Protocol):
     def services(self) -> list[str]:
         ...
 
-    def traces(self, service: str, *, limit: int = 100) -> list[dict[str, Any]]:
+    def traces(
+        self,
+        service: str,
+        *,
+        limit: int = 100,
+        start_epoch_seconds: float | None = None,
+        end_epoch_seconds: float | None = None,
+    ) -> list[dict[str, Any]]:
         ...
 
 
 class OpenSearchLogClient(Protocol):
-    def search_logs(self, *, size: int = 100) -> list[dict[str, Any]]:
+    def search_logs(
+        self,
+        *,
+        size: int = 100,
+        start_epoch_seconds: float | None = None,
+        end_epoch_seconds: float | None = None,
+    ) -> list[dict[str, Any]]:
         ...
 
 
@@ -215,14 +228,27 @@ def collect_raw_capture(
     trace_services = options.trace_services or tuple(clients.jaeger.services())
     traces: list[dict[str, Any]] = []
     for service in trace_services:
-        traces.extend(clients.jaeger.traces(service, limit=options.trace_limit_per_service))
+        traces.extend(
+            clients.jaeger.traces(
+                service,
+                limit=options.trace_limit_per_service,
+                start_epoch_seconds=window_start_epoch_seconds,
+                end_epoch_seconds=window_end_epoch_seconds,
+            )
+        )
 
     return RawTelemetryCapture(
         window_start_epoch_seconds=window_start_epoch_seconds,
         window_end_epoch_seconds=window_end_epoch_seconds,
         prometheus_matrices=matrices,
         jaeger_traces=tuple(traces),
-        opensearch_logs=tuple(clients.opensearch.search_logs(size=options.log_limit)),
+        opensearch_logs=tuple(
+            clients.opensearch.search_logs(
+                size=options.log_limit,
+                start_epoch_seconds=window_start_epoch_seconds,
+                end_epoch_seconds=window_end_epoch_seconds,
+            )
+        ),
     )
 
 

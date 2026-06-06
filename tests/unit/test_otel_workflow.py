@@ -74,8 +74,8 @@ def test_collect_raw_capture_queries_backends() -> None:
     )
 
     assert prometheus.calls == [("rate(test_metric[1m])", 1000, 1120, "15s")]
-    assert jaeger.calls == [("checkout", 100)]
-    assert opensearch.calls == [10]
+    assert jaeger.calls == [("checkout", 100, 1000, 1120)]
+    assert opensearch.calls == [(10, 1000, 1120)]
     assert capture.prometheus_matrices[0].metric_name == "request_error_rate"
     assert capture.jaeger_traces[0]["spans"][0]["spanID"] == "span-1"
     assert capture.opensearch_logs[0]["_source"]["body"] == "dependency call failed"
@@ -155,13 +155,20 @@ class FakePrometheus:
 
 class FakeJaeger:
     def __init__(self) -> None:
-        self.calls: list[tuple[str, int]] = []
+        self.calls: list[tuple[str, int, float | None, float | None]] = []
 
     def services(self) -> list[str]:
         return ["checkout"]
 
-    def traces(self, service: str, *, limit: int = 100) -> list[dict]:
-        self.calls.append((service, limit))
+    def traces(
+        self,
+        service: str,
+        *,
+        limit: int = 100,
+        start_epoch_seconds: float | None = None,
+        end_epoch_seconds: float | None = None,
+    ) -> list[dict]:
+        self.calls.append((service, limit, start_epoch_seconds, end_epoch_seconds))
         return [
             {
                 "processes": {"p1": {"serviceName": service}},
@@ -186,10 +193,16 @@ class FakeJaeger:
 
 class FakeOpenSearch:
     def __init__(self) -> None:
-        self.calls: list[int] = []
+        self.calls: list[tuple[int, float | None, float | None]] = []
 
-    def search_logs(self, *, size: int = 100) -> list[dict]:
-        self.calls.append(size)
+    def search_logs(
+        self,
+        *,
+        size: int = 100,
+        start_epoch_seconds: float | None = None,
+        end_epoch_seconds: float | None = None,
+    ) -> list[dict]:
+        self.calls.append((size, start_epoch_seconds, end_epoch_seconds))
         return [
             {
                 "_source": {
