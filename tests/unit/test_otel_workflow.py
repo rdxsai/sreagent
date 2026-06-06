@@ -69,13 +69,16 @@ def test_collect_raw_capture_queries_backends() -> None:
             ),
             trace_services=("checkout",),
             log_limit=10,
+            log_buckets=2,
             validate_output=False,
         ),
     )
 
     assert prometheus.calls == [("rate(test_metric[1m])", 1000, 1120, "15s")]
     assert jaeger.calls == [("checkout", 100, 1000, 1120)]
-    assert opensearch.calls == [(10, 1000, 1120)]
+    # Logs are pulled per time bucket (5 rows each) and deduped by _id.
+    assert opensearch.calls == [(5, 1000, 1060), (5, 1060, 1120)]
+    assert len(capture.opensearch_logs) == 1
     assert capture.prometheus_matrices[0].metric_name == "request_error_rate"
     assert capture.jaeger_traces[0]["spans"][0]["spanID"] == "span-1"
     assert capture.opensearch_logs[0]["_source"]["body"] == "dependency call failed"
@@ -205,6 +208,7 @@ class FakeOpenSearch:
         self.calls.append((size, start_epoch_seconds, end_epoch_seconds))
         return [
             {
+                "_id": "log-1",
                 "_source": {
                     "observedTimestamp": "1970-01-01T00:22:00Z",
                     "body": "dependency call failed",

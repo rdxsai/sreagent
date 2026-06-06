@@ -7,7 +7,7 @@
     "end": 120
   },
   "symptom": "Checkout failures increased during the recording window.",
-  "available_signals": ["metrics", "logs", "traces", "topology", "changes"],
+  "available_signals": ["metrics", "logs", "traces", "changes"],
   "notes": [
     "Feature flag names and private injection metadata are intentionally redacted."
   ]

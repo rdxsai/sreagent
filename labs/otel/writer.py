@@ -15,7 +15,6 @@ from sentinel.fixtures.schemas import (
     MetricRow,
     PrivateTruth,
     PublicManifest,
-    Topology,
     TraceRow,
 )
 
@@ -28,7 +27,6 @@ def write_fixture(
     scenario_dir: Path,
     *,
     manifest: PublicManifest,
-    topology: Topology,
     metrics: list[MetricRow],
     logs: list[LogRow],
     traces: list[TraceRow],
@@ -50,7 +48,6 @@ def write_fixture(
     eval_dir.mkdir(parents=True, exist_ok=True)
 
     _write_json(public_dir / "manifest.json", manifest)
-    _write_json(public_dir / "topology.json", topology)
     _write_jsonl(public_dir / "metrics.jsonl", sorted(metrics, key=_metric_key))
     _write_jsonl(public_dir / "logs.jsonl", sorted(logs, key=_log_key))
     _write_jsonl(public_dir / "traces.jsonl", sorted(traces, key=_trace_key))

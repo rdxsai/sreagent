@@ -14,7 +14,6 @@ from sentinel.fixtures.schemas import (
     PublicManifest,
     RootCause,
     TimeWindow,
-    Topology,
     TraceRow,
 )
 
@@ -25,7 +24,6 @@ def test_write_fixture_separates_public_and_eval_truth(tmp_path) -> None:
     write_fixture(
         scenario_dir,
         manifest=_manifest(),
-        topology=Topology(services=["checkout", "payment"], edges=[]),
         metrics=[
             MetricRow(
                 time=10,
@@ -75,7 +73,6 @@ def test_write_fixture_rejects_public_flag_leaks(tmp_path) -> None:
         write_fixture(
             tmp_path / "scenario",
             manifest=_manifest(symptom="paymentUnreachable happened"),
-            topology=Topology(services=["checkout"], edges=[]),
             metrics=[],
             logs=[],
             traces=[],
@@ -91,7 +88,7 @@ def _manifest(symptom: str = "Checkout failures increased.") -> PublicManifest:
         time_unit="second",
         window=TimeWindow(start=0, end=120),
         symptom=symptom,
-        available_signals=["metrics", "logs", "traces", "topology", "changes"],
+        available_signals=["metrics", "logs", "traces", "changes"],
     )
 
 

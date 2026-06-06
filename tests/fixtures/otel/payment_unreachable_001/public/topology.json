@@ -1,9 +1,0 @@
-{
-  "services": ["frontend", "checkout", "payment", "cart", "recommendation"],
-  "edges": [
-    {"caller": "frontend", "callee": "checkout"},
-    {"caller": "checkout", "callee": "payment"},
-    {"caller": "checkout", "callee": "cart"},
-    {"caller": "frontend", "callee": "recommendation"}
-  ]
-}

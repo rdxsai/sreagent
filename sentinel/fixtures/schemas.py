@@ -119,7 +119,6 @@ class PublicFixture(StrictModel):
 
     root: Path
     manifest: PublicManifest
-    topology: Topology
     metrics: list[MetricRow]
     logs: list[LogRow]
     traces: list[TraceRow]

@@ -14,7 +14,6 @@ from sentinel.fixtures.schemas import (
     MetricRow,
     PublicFixture,
     PublicManifest,
-    Topology,
     TraceRow,
 )
 
@@ -39,7 +38,6 @@ def load_public_fixture(public_dir: Path) -> PublicFixture:
     return PublicFixture(
         root=root,
         manifest=_load_json(root / "manifest.json", PublicManifest),
-        topology=_load_json(root / "topology.json", Topology),
         metrics=sorted(metrics, key=_metric_key),
         logs=sorted(logs, key=_log_key),
         traces=sorted(traces, key=_trace_key),

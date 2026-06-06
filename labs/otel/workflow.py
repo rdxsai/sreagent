@@ -26,11 +26,8 @@ from sentinel.fixtures.schemas import (
     MetricRow,
     PrivateTruth,
     PublicManifest,
-    RootCause,
     ScenarioDefinition,
     TimeWindow,
-    Topology,
-    TopologyEdge,
     TraceRow,
 )
 
@@ -127,7 +124,10 @@ class RecordingOptions:
     prometheus_step: str = "15s"
     trace_services: tuple[str, ...] = ()
     trace_limit_per_service: int = 100
-    log_limit: int = 500
+    # Total log rows to capture, spread evenly across log_buckets sub-windows so
+    # post-onset logs are represented instead of only the earliest slice of the window.
+    log_limit: int = 20000
+    log_buckets: int = 12
     validate_output: bool = True
     validation_gates: QualityGates = field(default_factory=QualityGates)
 
@@ -138,11 +138,11 @@ DEFAULT_METRIC_QUERIES: tuple[MetricQuery, ...] = (
         unit="ratio",
         query=(
             "(sum by (service_name) "
-            '(sum_over_time(traces_span_metrics_calls_total{status_code="STATUS_CODE_ERROR"}[1m])) '
+            '(rate(traces_span_metrics_calls_total{status_code="STATUS_CODE_ERROR"}[3m])) '
             "/ sum by (service_name) "
-            "(sum_over_time(traces_span_metrics_calls_total[1m]))) "
+            "(rate(traces_span_metrics_calls_total[3m]))) "
             "or (0 * sum by (service_name) "
-            "(sum_over_time(traces_span_metrics_calls_total[1m])))"
+            "(rate(traces_span_metrics_calls_total[3m])))"
         ),
     ),
     MetricQuery(
@@ -151,24 +151,9 @@ DEFAULT_METRIC_QUERIES: tuple[MetricQuery, ...] = (
         query=(
             "histogram_quantile(0.95, "
             "sum by (le, service_name) "
-            "(sum_over_time(traces_span_metrics_duration_milliseconds_bucket[1m])))"
+            "(rate(traces_span_metrics_duration_milliseconds_bucket[3m])))"
         ),
     ),
-)
-
-DEFAULT_TOPOLOGY_SERVICES: tuple[str, ...] = (
-    "frontend",
-    "checkout",
-    "payment",
-    "cart",
-    "recommendation",
-)
-
-DEFAULT_TOPOLOGY_EDGES: tuple[TopologyEdge, ...] = (
-    TopologyEdge(caller="frontend", callee="checkout"),
-    TopologyEdge(caller="checkout", callee="payment"),
-    TopologyEdge(caller="checkout", callee="cart"),
-    TopologyEdge(caller="frontend", callee="recommendation"),
 )
 
 SleepFn = Callable[[float], None]
@@ -242,14 +227,53 @@ def collect_raw_capture(
         window_end_epoch_seconds=window_end_epoch_seconds,
         prometheus_matrices=matrices,
         jaeger_traces=tuple(traces),
-        opensearch_logs=tuple(
-            clients.opensearch.search_logs(
-                size=options.log_limit,
-                start_epoch_seconds=window_start_epoch_seconds,
-                end_epoch_seconds=window_end_epoch_seconds,
-            )
+        opensearch_logs=_collect_bucketed_logs(
+            clients.opensearch,
+            window_start_epoch_seconds=window_start_epoch_seconds,
+            window_end_epoch_seconds=window_end_epoch_seconds,
+            options=options,
         ),
     )
+
+
+def _collect_bucketed_logs(
+    opensearch: OpenSearchLogClient,
+    *,
+    window_start_epoch_seconds: float,
+    window_end_epoch_seconds: float,
+    options: RecordingOptions,
+) -> tuple[dict[str, Any], ...]:
+    """Pull logs evenly across the window so post-onset rows are not crowded out.
+
+    A single time-sorted query returns only the earliest rows of a high-volume
+    window. Splitting the window into buckets and pulling a share from each keeps
+    coverage across the whole incident, including after onset.
+    """
+
+    buckets = max(1, options.log_buckets)
+    per_bucket = max(1, -(-options.log_limit // buckets))
+    span = (window_end_epoch_seconds - window_start_epoch_seconds) / buckets
+    seen_ids: set[str] = set()
+    rows: list[dict[str, Any]] = []
+    for index in range(buckets):
+        bucket_start = window_start_epoch_seconds + span * index
+        bucket_end = (
+            window_end_epoch_seconds
+            if index == buckets - 1
+            else window_start_epoch_seconds + span * (index + 1)
+        )
+        for hit in opensearch.search_logs(
+            size=per_bucket,
+            start_epoch_seconds=bucket_start,
+            end_epoch_seconds=bucket_end,
+        ):
+            identifier = hit.get("_id")
+            if isinstance(identifier, str):
+                if identifier in seen_ids:
+                    continue
+                seen_ids.add(identifier)
+            rows.append(hit)
+    return tuple(rows)
 
 
 def assemble_recorded_fixture(
@@ -279,7 +303,6 @@ def assemble_recorded_fixture(
     write_fixture(
         scenario_dir,
         manifest=_manifest(scenario),
-        topology=_topology(scenario.truth.root_cause, metrics, logs, traces, changes),
         metrics=metrics,
         logs=logs,
         traces=traces,
@@ -361,7 +384,7 @@ def _manifest(scenario: ScenarioDefinition) -> PublicManifest:
         time_unit="second",
         window=TimeWindow(start=0, end=scenario.timing.recording_seconds),
         symptom=scenario.public.symptom,
-        available_signals=["metrics", "logs", "traces", "topology", "changes"],
+        available_signals=["metrics", "logs", "traces", "changes"],
         notes=[
             f"Recorded from OpenTelemetry Demo pinned commit {OTEL_DEMO_GIT_SHA}.",
             "Feature flag names and private injection metadata are intentionally redacted.",
@@ -406,32 +429,6 @@ def _public_changes(scenario: ScenarioDefinition) -> list[ChangeEvent]:
     return [*scenario.public.decoy_changes, scenario.public.sanitized_change]
 
 
-def _topology(
-    root_cause: RootCause,
-    metrics: list[MetricRow],
-    logs: list[LogRow],
-    traces: list[TraceRow],
-    changes: list[ChangeEvent],
-) -> Topology:
-    services = list(DEFAULT_TOPOLOGY_SERVICES)
-    services.extend(row.service for row in metrics)
-    services.extend(row.service for row in logs)
-    services.extend(row.service for row in traces)
-    services.extend(change.service for change in changes)
-    services.extend(
-        service
-        for service in (root_cause.service, root_cause.caller, root_cause.callee)
-        if service is not None
-    )
-    unique_services = _ordered_unique(services)
-
-    edges = list(DEFAULT_TOPOLOGY_EDGES)
-    if root_cause.kind == "edge" and root_cause.caller and root_cause.callee:
-        edges.append(TopologyEdge(caller=root_cause.caller, callee=root_cause.callee))
-    unique_edges = _ordered_unique_edges(edges)
-    return Topology(services=unique_services, edges=unique_edges)
-
-
 def _injection_log(
     scenario: ScenarioDefinition,
     *,
@@ -460,24 +457,3 @@ def _flag_snapshots(
     if after is not None:
         snapshots["raw_flag_snapshot.after.json"] = after
     return snapshots
-
-
-def _ordered_unique(values: list[str]) -> list[str]:
-    seen: set[str] = set()
-    ordered: list[str] = []
-    for value in values:
-        if value not in seen:
-            seen.add(value)
-            ordered.append(value)
-    return ordered
-
-
-def _ordered_unique_edges(edges: list[TopologyEdge]) -> list[TopologyEdge]:
-    seen: set[tuple[str, str]] = set()
-    ordered: list[TopologyEdge] = []
-    for edge in edges:
-        key = (edge.caller, edge.callee)
-        if key not in seen:
-            seen.add(key)
-            ordered.append(edge)
-    return ordered
