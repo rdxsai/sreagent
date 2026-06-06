@@ -7,6 +7,7 @@ from math import isfinite
 from pathlib import Path
 from typing import Any
 
+from labs.otel.redactor import BANNED_PUBLIC_TOKENS
 from sentinel.fixtures.schemas import LogRow, MetricRow, TraceRow
 
 
@@ -115,6 +116,8 @@ def normalize_opensearch_logs(
         timestamp = source.get("time") or source.get("timestamp") or source.get("observedTimestamp")
         if not message or not service or not timestamp:
             continue
+        if _contains_banned_public_token(message):
+            continue
         rows.append(
             LogRow(
                 time=_relative_second(_timestamp_seconds(timestamp), window_start_epoch_seconds),
@@ -148,7 +151,7 @@ def _log_attributes(source: dict[str, Any]) -> dict[str, Any]:
         value = source.get(key)
         if isinstance(value, dict):
             for attr_key, attr_value in value.items():
-                if _is_public_attribute(attr_key):
+                if _is_public_attribute(attr_key, attr_value):
                     attributes[str(attr_key)] = attr_value
     return attributes
 
@@ -158,7 +161,11 @@ def _tag_map(tags: Any) -> dict[str, Any]:
     if not isinstance(tags, list):
         return values
     for tag in tags:
-        if isinstance(tag, dict) and "key" in tag and _is_public_attribute(str(tag["key"])):
+        if (
+            isinstance(tag, dict)
+            and "key" in tag
+            and _is_public_attribute(str(tag["key"]), tag.get("value"))
+        ):
             values[str(tag["key"])] = tag.get("value")
     return values
 
@@ -211,12 +218,19 @@ def _public_attributes(
     return {
         str(key): value
         for key, value in attributes.items()
-        if str(key) not in excluded and _is_public_attribute(str(key))
+        if str(key) not in excluded and _is_public_attribute(str(key), value)
     }
 
 
-def _is_public_attribute(key: str) -> bool:
-    return "feature_flag" not in key and "feature.flag" not in key
+def _is_public_attribute(key: str, value: Any = None) -> bool:
+    return not _contains_banned_public_token(key) and not _contains_banned_public_token(value)
+
+
+def _contains_banned_public_token(value: Any) -> bool:
+    if value is None:
+        return False
+    text = str(value)
+    return any(token in text for token in BANNED_PUBLIC_TOKENS)
 
 
 def _relative_second(timestamp_seconds: Any, window_start_epoch_seconds: float) -> int:

@@ -135,6 +135,34 @@ def test_normalize_jaeger_traces_drops_nested_feature_flag_attributes() -> None:
     assert rows[0].attributes == {"demo.product.count": 10}
 
 
+def test_normalize_jaeger_traces_drops_raw_flag_attribute_values() -> None:
+    rows = normalize_jaeger_traces(
+        [
+            {
+                "processes": {"p1": {"serviceName": "payment"}},
+                "spans": [
+                    {
+                        "traceID": "trace-1",
+                        "spanID": "span-1",
+                        "processID": "p1",
+                        "operationName": "Charge",
+                        "startTime": 1_000_000_000,
+                        "duration": 42_000,
+                        "tags": [
+                            {"key": "demo.flag_name", "value": "paymentFailure"},
+                            {"key": "rpc.system", "value": "grpc"},
+                        ],
+                        "references": [],
+                    }
+                ],
+            }
+        ],
+        window_start_epoch_seconds=1000,
+    )
+
+    assert rows[0].attributes == {"rpc.system": "grpc"}
+
+
 def test_normalize_opensearch_logs_maps_source() -> None:
     rows = normalize_opensearch_logs(
         [
@@ -161,3 +189,20 @@ def test_normalize_opensearch_logs_maps_source() -> None:
     assert rows[0].trace_id == "trace-1"
     assert rows[0].attributes["dependency"] == "payment"
     assert "feature_flag.key" not in rows[0].attributes
+
+
+def test_normalize_opensearch_logs_drops_raw_flag_messages() -> None:
+    rows = normalize_opensearch_logs(
+        [
+            {
+                "_source": {
+                    "observedTimestamp": "1970-01-01T00:16:45Z",
+                    "body": "FeatureFlag 'kafkaQueueProblems' is enabled",
+                    "resource": {"service.name": "fraud-detection"},
+                }
+            }
+        ],
+        window_start_epoch_seconds=1000,
+    )
+
+    assert rows == []
