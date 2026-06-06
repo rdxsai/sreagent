@@ -247,7 +247,7 @@ def _timestamp_seconds(value: Any) -> float:
     text = str(value)
     if text.endswith("Z"):
         text = f"{text[:-1]}+00:00"
-    text = _truncate_fractional_seconds(text)
+    text = _normalize_fractional_seconds(text)
     return datetime.fromisoformat(text).timestamp()
 
 
@@ -258,7 +258,15 @@ def _optional_string(value: Any) -> str | None:
     return text or None
 
 
-def _truncate_fractional_seconds(text: str) -> str:
+def _normalize_fractional_seconds(text: str) -> str:
+    """Coerce fractional seconds to exactly 6 digits for datetime.fromisoformat.
+
+    Python 3.10's fromisoformat only accepts 3- or 6-digit fractions, while
+    OpenSearch emits variable precision (for example 5-digit ".84349" or
+    9-digit nanoseconds). Truncate anything longer than microseconds and right-pad
+    anything shorter, which preserves the value.
+    """
+
     if "." not in text:
         return text
     prefix, suffix = text.split(".", 1)
@@ -269,4 +277,5 @@ def _truncate_fractional_seconds(text: str) -> str:
             fraction, _, tail = suffix.partition(marker)
             offset = f"{marker}{tail}"
             break
-    return f"{prefix}.{fraction[:6]}{offset}"
+    microseconds = fraction[:6].ljust(6, "0")
+    return f"{prefix}.{microseconds}{offset}"
