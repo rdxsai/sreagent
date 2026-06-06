@@ -125,11 +125,11 @@ DEFAULT_METRIC_QUERIES: tuple[MetricQuery, ...] = (
         unit="ratio",
         query=(
             "(sum by (service_name) "
-            '(rate(rpc_server_duration_milliseconds_count{rpc_grpc_status_code!="0"}[1m])) '
+            '(sum_over_time(traces_span_metrics_calls_total{status_code="STATUS_CODE_ERROR"}[5m])) '
             "/ sum by (service_name) "
-            "(rate(rpc_server_duration_milliseconds_count[1m]))) "
+            "(sum_over_time(traces_span_metrics_calls_total[5m]))) "
             "or (0 * sum by (service_name) "
-            "(rate(rpc_server_duration_milliseconds_count[1m])))"
+            "(sum_over_time(traces_span_metrics_calls_total[5m])))"
         ),
     ),
     MetricQuery(
@@ -138,7 +138,7 @@ DEFAULT_METRIC_QUERIES: tuple[MetricQuery, ...] = (
         query=(
             "histogram_quantile(0.95, "
             "sum by (le, service_name) "
-            "(rate(rpc_server_duration_milliseconds_bucket[1m])))"
+            "(sum_over_time(traces_span_metrics_duration_milliseconds_bucket[5m])))"
         ),
     ),
 )

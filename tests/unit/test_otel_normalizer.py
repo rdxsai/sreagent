@@ -20,7 +20,7 @@ def test_normalize_prometheus_matrix_drops_feature_flag_labels() -> None:
                     },
                     "values": [[1000, "1"], [1010, "3"]],
                 }
-            ]
+            ],
         },
         metric_name="request_error_rate",
         unit="ratio",
@@ -30,6 +30,24 @@ def test_normalize_prometheus_matrix_drops_feature_flag_labels() -> None:
     assert [row.time for row in rows] == [0, 10]
     assert rows[0].service == "checkout"
     assert rows[0].attributes == {"route": "/api/checkout"}
+
+
+def test_normalize_prometheus_matrix_drops_non_finite_values() -> None:
+    rows = normalize_prometheus_matrix(
+        {
+            "result": [
+                {
+                    "metric": {"service_name": "checkout"},
+                    "values": [[1000, "NaN"], [1010, "1"]],
+                }
+            ]
+        },
+        metric_name="request_error_rate",
+        unit="ratio",
+        window_start_epoch_seconds=1000,
+    )
+
+    assert [row.time for row in rows] == [10]
 
 
 def test_normalize_jaeger_traces_maps_spans() -> None:
@@ -64,6 +82,31 @@ def test_normalize_jaeger_traces_maps_spans() -> None:
     assert "feature_flag.key" not in rows[0].attributes
 
 
+def test_normalize_jaeger_traces_marks_nonzero_grpc_status_as_error() -> None:
+    rows = normalize_jaeger_traces(
+        [
+            {
+                "processes": {"p1": {"serviceName": "payment"}},
+                "spans": [
+                    {
+                        "traceID": "trace-1",
+                        "spanID": "span-1",
+                        "processID": "p1",
+                        "operationName": "Charge",
+                        "startTime": 1_000_000_000,
+                        "duration": 42_000,
+                        "tags": [{"key": "rpc.grpc.status_code", "value": 14}],
+                        "references": [],
+                    }
+                ],
+            }
+        ],
+        window_start_epoch_seconds=1000,
+    )
+
+    assert rows[0].status == "ERROR"
+
+
 def test_normalize_opensearch_logs_maps_source() -> None:
     rows = normalize_opensearch_logs(
         [
@@ -71,7 +114,7 @@ def test_normalize_opensearch_logs_maps_source() -> None:
                 "_source": {
                     "observedTimestamp": "1970-01-01T00:16:45Z",
                     "body": "dependency call failed",
-                    "severityText": "ERROR",
+                    "severity": {"text": "ERROR", "number": 17},
                     "traceId": "trace-1",
                     "resource": {
                         "service.name": "checkout",

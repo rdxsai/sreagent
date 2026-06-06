@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from math import isfinite
 from pathlib import Path
 from typing import Any
 
@@ -41,12 +42,15 @@ def normalize_prometheus_matrix(
             if not isinstance(point, list | tuple) or len(point) != 2:
                 continue
             timestamp, raw_value = point
+            value = float(raw_value)
+            if not isfinite(value):
+                continue
             rows.append(
                 MetricRow(
                     time=_relative_second(timestamp, window_start_epoch_seconds),
                     service=str(service),
                     metric=metric_name,
-                    value=float(raw_value),
+                    value=value,
                     unit=unit,
                     attributes=attributes,
                 )
@@ -115,7 +119,7 @@ def normalize_opensearch_logs(
             LogRow(
                 time=_relative_second(_timestamp_seconds(timestamp), window_start_epoch_seconds),
                 service=service,
-                severity=str(source.get("severityText") or source.get("severity") or "INFO"),
+                severity=_log_severity(source),
                 message=str(message),
                 attributes=_log_attributes(source),
                 trace_id=_optional_string(source.get("traceId") or source.get("trace_id")),
@@ -172,10 +176,30 @@ def _parent_span_id(span: dict[str, Any]) -> str | None:
 def _span_status(tags: dict[str, Any]) -> str:
     if tags.get("error") is True:
         return "ERROR"
+    grpc_status = tags.get("rpc.grpc.status_code")
+    if grpc_status is not None and str(grpc_status) != "0":
+        return "ERROR"
+    http_status = tags.get("http.response.status_code") or tags.get("http.status_code")
+    if http_status is not None and int(http_status) >= 500:
+        return "ERROR"
     status = tags.get("otel.status_code")
     if str(status).upper() == "ERROR":
         return "ERROR"
     return "OK"
+
+
+def _log_severity(source: dict[str, Any]) -> str:
+    severity_text = source.get("severityText")
+    if severity_text:
+        return str(severity_text)
+    severity = source.get("severity")
+    if isinstance(severity, dict):
+        text = severity.get("text")
+        if text:
+            return str(text)
+    if severity:
+        return str(severity)
+    return "INFO"
 
 
 def _public_attributes(
