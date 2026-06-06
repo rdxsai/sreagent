@@ -112,7 +112,7 @@ def test_normalize_opensearch_logs_maps_source() -> None:
         [
             {
                 "_source": {
-                    "observedTimestamp": "1970-01-01T00:16:45Z",
+                    "observedTimestamp": "1970-01-01T00:16:45.123456789Z",
                     "body": "dependency call failed",
                     "severity": {"text": "ERROR", "number": 17},
                     "traceId": "trace-1",

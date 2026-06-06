@@ -233,6 +233,7 @@ def _timestamp_seconds(value: Any) -> float:
     text = str(value)
     if text.endswith("Z"):
         text = f"{text[:-1]}+00:00"
+    text = _truncate_fractional_seconds(text)
     return datetime.fromisoformat(text).timestamp()
 
 
@@ -241,3 +242,17 @@ def _optional_string(value: Any) -> str | None:
         return None
     text = str(value)
     return text or None
+
+
+def _truncate_fractional_seconds(text: str) -> str:
+    if "." not in text:
+        return text
+    prefix, suffix = text.split(".", 1)
+    offset = ""
+    fraction = suffix
+    for marker in ("+", "-"):
+        if marker in suffix:
+            fraction, _, tail = suffix.partition(marker)
+            offset = f"{marker}{tail}"
+            break
+    return f"{prefix}.{fraction[:6]}{offset}"
