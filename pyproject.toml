@@ -16,6 +16,7 @@ dependencies = [
     "anthropic>=0.40",
     "tenacity>=8.0",
     "structlog>=24.1",
+    "PyYAML>=6.0",
 ]
 
 [project.optional-dependencies]

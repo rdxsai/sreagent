@@ -57,12 +57,14 @@ def test_write_fixture_separates_public_and_eval_truth(tmp_path) -> None:
         changes=[_change("chg_0001", "checkout")],
         truth=_truth(),
         injection_log={"raw_flag_key": "paymentUnreachable"},
+        eval_only_json={"raw_flag_snapshot.before.json": {"flags": {}}},
     )
 
     public = load_public_fixture(scenario_dir / "public")
 
     assert public.manifest.scenario_id == "scenario_001"
     assert (scenario_dir / "eval_only" / "truth.json").exists()
+    assert (scenario_dir / "eval_only" / "raw_flag_snapshot.before.json").exists()
     assert "paymentUnreachable" not in (scenario_dir / "public" / "manifest.json").read_text(
         encoding="utf-8"
     )

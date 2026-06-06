@@ -10,7 +10,14 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
-from labs.otel.source import JAEGER_API_BASE_PATH, frontend_proxy_base_url, prometheus_base_url
+from labs.otel.source import (
+    JAEGER_API_BASE_PATH,
+    OPENSEARCH_CONTAINER_NAME,
+    OPENSEARCH_CONTAINER_PORT,
+    docker_published_url,
+    frontend_proxy_base_url,
+    prometheus_base_url,
+)
 
 
 def record_raw_telemetry(output_dir: Path) -> None:
@@ -101,6 +108,10 @@ class JaegerClient:
 class OpenSearchClient:
     base_url: str
     timeout_seconds: float = 10.0
+
+    @classmethod
+    def from_environment(cls) -> OpenSearchClient:
+        return cls(docker_published_url(OPENSEARCH_CONTAINER_NAME, OPENSEARCH_CONTAINER_PORT))
 
     def indices(self) -> list[str]:
         text = _get_text(f"{self.base_url.rstrip('/')}/_cat/indices?h=index", self.timeout_seconds)

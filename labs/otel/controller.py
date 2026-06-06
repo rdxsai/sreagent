@@ -9,16 +9,36 @@ from pathlib import Path
 from labs.otel.flagd import FlagdClient
 from labs.otel.smoke import default_targets, smoke_check
 from labs.otel.source import start_command, stop_command, verify_source_checkout
+from labs.otel.workflow import (
+    RecordingOptions,
+    TelemetryClients,
+    load_scenario,
+    record_scenario_definition,
+)
 
 
-def record_scenario(config_path: Path, output_dir: Path) -> None:
-    """Record one scenario from a scenario config file.
+def record_scenario(
+    config_path: Path,
+    output_dir: Path,
+    *,
+    scenario_id: str | None = None,
+    flag_base_url: str | None = None,
+    validate_output: bool = True,
+) -> int:
+    """Record one scenario from a scenario config file."""
 
-    Live control is intentionally not wired until the OpenTelemetry Demo SHA,
-    flagd API, workload command, and telemetry backends are verified.
-    """
-
-    raise NotImplementedError("live OpenTelemetry Demo control is not wired yet")
+    scenario = load_scenario(config_path, scenario_id)
+    flag_client = FlagdClient(base_url=flag_base_url) if flag_base_url else FlagdClient()
+    report = record_scenario_definition(
+        scenario,
+        output_dir,
+        flag_client=flag_client,
+        telemetry_clients=TelemetryClients.from_environment(),
+        options=RecordingOptions(validate_output=validate_output),
+    )
+    for error in report.errors:
+        print(f"ERROR {error}")
+    return 0 if report.passed else 1
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -43,6 +63,13 @@ def main(argv: list[str] | None = None) -> int:
     smoke.add_argument("--frontend-base-url", default=None)
     smoke.add_argument("--prometheus-base-url", default=None)
     smoke.add_argument("--opensearch-base-url", default=None)
+
+    record = subparsers.add_parser("record", help="record and validate one scenario fixture")
+    record.add_argument("config_path", type=Path)
+    record.add_argument("output_dir", type=Path)
+    record.add_argument("--scenario-id", default=None)
+    record.add_argument("--flag-base-url", default=None)
+    record.add_argument("--skip-validation", action="store_true")
 
     args = parser.parse_args(argv)
     if args.command == "doctor":
@@ -76,6 +103,14 @@ def main(argv: list[str] | None = None) -> int:
             status = result.status_code if result.status_code is not None else "ERR"
             print(f"{result.name} {status} {result.url}")
         return 0 if all(result.ok for result in results) else 1
+    if args.command == "record":
+        return record_scenario(
+            args.config_path,
+            args.output_dir,
+            scenario_id=args.scenario_id,
+            flag_base_url=args.flag_base_url,
+            validate_output=not args.skip_validation,
+        )
     raise AssertionError(f"unhandled command {args.command}")
 
 

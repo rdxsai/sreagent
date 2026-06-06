@@ -35,6 +35,7 @@ def write_fixture(
     changes: list[ChangeEvent],
     truth: PrivateTruth,
     injection_log: dict[str, Any] | None = None,
+    eval_only_json: dict[str, dict[str, Any]] | None = None,
     runbooks: list[dict[str, Any]] | None = None,
 ) -> None:
     """Write one scenario fixture and fail if public output leaks banned tokens."""
@@ -61,6 +62,8 @@ def write_fixture(
     _write_json(eval_dir / "truth.json", truth)
     if injection_log is not None:
         _write_plain_json(eval_dir / "injection_log.json", injection_log)
+    for name, payload in (eval_only_json or {}).items():
+        _write_eval_only_json(eval_dir, name, payload)
 
 
 def _write_json(path: Path, model: BaseModel) -> None:
@@ -72,6 +75,13 @@ def _write_json(path: Path, model: BaseModel) -> None:
 
 def _write_plain_json(path: Path, value: dict[str, Any]) -> None:
     path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _write_eval_only_json(eval_dir: Path, name: str, value: dict[str, Any]) -> None:
+    path = Path(name)
+    if path.name != name or path.suffix != ".json":
+        raise FixtureWriteError(f"invalid eval-only artifact name: {name}")
+    _write_plain_json(eval_dir / path, value)
 
 
 def _write_jsonl(path: Path, rows: list[BaseModel] | list[dict[str, Any]]) -> None:
