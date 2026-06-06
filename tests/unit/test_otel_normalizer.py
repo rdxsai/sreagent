@@ -107,6 +107,34 @@ def test_normalize_jaeger_traces_marks_nonzero_grpc_status_as_error() -> None:
     assert rows[0].status == "ERROR"
 
 
+def test_normalize_jaeger_traces_drops_nested_feature_flag_attributes() -> None:
+    rows = normalize_jaeger_traces(
+        [
+            {
+                "processes": {"p1": {"serviceName": "recommendation"}},
+                "spans": [
+                    {
+                        "traceID": "trace-1",
+                        "spanID": "span-1",
+                        "processID": "p1",
+                        "operationName": "ListRecommendations",
+                        "startTime": 1_000_000_000,
+                        "duration": 42_000,
+                        "tags": [
+                            {"key": "demo.feature_flag.recommendation_cache", "value": False},
+                            {"key": "demo.product.count", "value": 10},
+                        ],
+                        "references": [],
+                    }
+                ],
+            }
+        ],
+        window_start_epoch_seconds=1000,
+    )
+
+    assert rows[0].attributes == {"demo.product.count": 10}
+
+
 def test_normalize_opensearch_logs_maps_source() -> None:
     rows = normalize_opensearch_logs(
         [

@@ -216,7 +216,7 @@ def _public_attributes(
 
 
 def _is_public_attribute(key: str) -> bool:
-    return not key.startswith("feature_flag") and not key.startswith("feature.flag")
+    return "feature_flag" not in key and "feature.flag" not in key
 
 
 def _relative_second(timestamp_seconds: Any, window_start_epoch_seconds: float) -> int:
