@@ -25,8 +25,20 @@ CATALOG_PATH = Path(__file__).parents[2] / "labs" / "otel" / "scenarios.yaml"
 def test_load_scenarios_reads_catalog() -> None:
     scenarios = load_scenarios(CATALOG_PATH)
 
-    assert [scenario.id for scenario in scenarios] == ["payment_unreachable_001"]
-    assert scenarios[0].raw_flag_key == "paymentUnreachable"
+    scenario_ids = {scenario.id for scenario in scenarios}
+    assert scenario_ids == {
+        "payment_failure_001",
+        "payment_unreachable_001",
+        "recommendation_cache_failure_001",
+        "product_catalog_failure_001",
+        "ad_high_cpu_001",
+        "ad_manual_gc_001",
+        "load_generator_flood_homepage_001",
+        "kafka_queue_problems_001",
+    }
+    assert load_scenario(CATALOG_PATH, "payment_unreachable_001").raw_flag_key == (
+        "paymentUnreachable"
+    )
 
 
 def test_load_scenario_selects_requested_id() -> None:

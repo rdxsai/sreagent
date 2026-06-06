@@ -3,6 +3,51 @@
 # This config is controller input and must not be passed to agent tools.
 
 scenarios:
+  - id: payment_failure_001
+    display_name: Payment charge failure
+    raw_flag_key: paymentFailure
+    variant: "100%"
+    timing:
+      warmup_seconds: 180
+      injection_at_seconds: 300
+      recording_seconds: 900
+    workload:
+      profile: checkout_steady
+      users: 20
+      spawn_rate: 2
+    public:
+      symptom: Checkout payment attempts started failing during the recording window.
+      sanitized_change:
+        id: chg_0003
+        time: 300
+        service: payment
+        kind: runtime_config_change
+        summary: payment processing configuration changed
+        diff_touches:
+          - charge_handler
+          - payment_provider
+      decoy_changes:
+        - id: chg_0001
+          time: 270
+          service: frontend
+          kind: deploy
+          summary: frontend copy and layout assets changed
+          diff_touches:
+            - copy
+            - layout_assets
+        - id: chg_0002
+          time: 285
+          service: recommendation
+          kind: runtime_config_change
+          summary: recommendation scoring parameter changed
+          diff_touches:
+            - scoring
+    truth:
+      root_cause:
+        kind: service
+        service: payment
+        type: payment_charge_failure
+
   - id: payment_unreachable_001
     display_name: Checkout payment dependency unreachable
     raw_flag_key: paymentUnreachable
@@ -48,3 +93,274 @@ scenarios:
         caller: checkout
         callee: payment
         type: dependency_unreachable
+
+  - id: recommendation_cache_failure_001
+    display_name: Recommendation cache failure
+    raw_flag_key: recommendationCacheFailure
+    variant: "on"
+    timing:
+      warmup_seconds: 180
+      injection_at_seconds: 300
+      recording_seconds: 900
+    workload:
+      profile: checkout_steady
+      users: 20
+      spawn_rate: 2
+    public:
+      symptom: Recommendation responses degraded during the recording window.
+      sanitized_change:
+        id: chg_0003
+        time: 300
+        service: recommendation
+        kind: runtime_config_change
+        summary: recommendation cache policy changed
+        diff_touches:
+          - cache_policy
+          - product_candidates
+      decoy_changes:
+        - id: chg_0001
+          time: 270
+          service: frontend
+          kind: deploy
+          summary: frontend copy and layout assets changed
+          diff_touches:
+            - copy
+            - layout_assets
+        - id: chg_0002
+          time: 285
+          service: payment
+          kind: runtime_config_change
+          summary: payment provider timeout parameter changed
+          diff_touches:
+            - payment_provider
+    truth:
+      root_cause:
+        kind: service
+        service: recommendation
+        type: cache_failure
+
+  - id: product_catalog_failure_001
+    display_name: Product catalog lookup failure
+    raw_flag_key: productCatalogFailure
+    variant: "on"
+    timing:
+      warmup_seconds: 180
+      injection_at_seconds: 300
+      recording_seconds: 900
+    workload:
+      profile: checkout_steady
+      users: 20
+      spawn_rate: 2
+    public:
+      symptom: A subset of product detail requests failed during the recording window.
+      sanitized_change:
+        id: chg_0003
+        time: 300
+        service: product-catalog
+        kind: runtime_config_change
+        summary: product lookup fallback configuration changed
+        diff_touches:
+          - lookup_handler
+          - product_fallback
+      decoy_changes:
+        - id: chg_0001
+          time: 270
+          service: frontend
+          kind: deploy
+          summary: frontend copy and layout assets changed
+          diff_touches:
+            - copy
+            - layout_assets
+        - id: chg_0002
+          time: 285
+          service: cart
+          kind: runtime_config_change
+          summary: cart session retention parameter changed
+          diff_touches:
+            - session_store
+    truth:
+      root_cause:
+        kind: service
+        service: product-catalog
+        type: product_lookup_failure
+
+  - id: ad_high_cpu_001
+    display_name: Ad service CPU saturation
+    raw_flag_key: adHighCpu
+    variant: "on"
+    timing:
+      warmup_seconds: 180
+      injection_at_seconds: 300
+      recording_seconds: 900
+    workload:
+      profile: checkout_steady
+      users: 20
+      spawn_rate: 2
+    public:
+      symptom: Ad responses slowed and ad service resource use increased during the recording window.
+      sanitized_change:
+        id: chg_0003
+        time: 300
+        service: ad
+        kind: runtime_config_change
+        summary: ad ranking worker configuration changed
+        diff_touches:
+          - ad_ranker
+          - worker_pool
+      decoy_changes:
+        - id: chg_0001
+          time: 270
+          service: frontend
+          kind: deploy
+          summary: frontend copy and layout assets changed
+          diff_touches:
+            - copy
+            - layout_assets
+        - id: chg_0002
+          time: 285
+          service: recommendation
+          kind: runtime_config_change
+          summary: recommendation scoring parameter changed
+          diff_touches:
+            - scoring
+    truth:
+      root_cause:
+        kind: service
+        service: ad
+        type: cpu_saturation
+
+  - id: ad_manual_gc_001
+    display_name: Ad service GC pressure
+    raw_flag_key: adManualGc
+    variant: "on"
+    timing:
+      warmup_seconds: 180
+      injection_at_seconds: 300
+      recording_seconds: 900
+    workload:
+      profile: checkout_steady
+      users: 20
+      spawn_rate: 2
+    public:
+      symptom: Ad responses slowed with memory-management pressure during the recording window.
+      sanitized_change:
+        id: chg_0003
+        time: 300
+        service: ad
+        kind: runtime_config_change
+        summary: ad runtime memory management setting changed
+        diff_touches:
+          - runtime_memory
+          - heap_policy
+      decoy_changes:
+        - id: chg_0001
+          time: 270
+          service: frontend
+          kind: deploy
+          summary: frontend copy and layout assets changed
+          diff_touches:
+            - copy
+            - layout_assets
+        - id: chg_0002
+          time: 285
+          service: payment
+          kind: runtime_config_change
+          summary: payment provider timeout parameter changed
+          diff_touches:
+            - payment_provider
+    truth:
+      root_cause:
+        kind: service
+        service: ad
+        type: gc_pressure
+
+  - id: load_generator_flood_homepage_001
+    display_name: Frontend request flood
+    raw_flag_key: loadGeneratorFloodHomepage
+    variant: "on"
+    timing:
+      warmup_seconds: 180
+      injection_at_seconds: 300
+      recording_seconds: 900
+    workload:
+      profile: homepage_steady
+      users: 20
+      spawn_rate: 2
+    public:
+      symptom: Frontend homepage traffic and latency increased during the recording window.
+      sanitized_change:
+        id: chg_0003
+        time: 300
+        service: load-generator
+        kind: runtime_config_change
+        summary: homepage traffic shaping configuration changed
+        diff_touches:
+          - homepage_profile
+          - request_scheduler
+      decoy_changes:
+        - id: chg_0001
+          time: 270
+          service: frontend
+          kind: deploy
+          summary: frontend copy and layout assets changed
+          diff_touches:
+            - copy
+            - layout_assets
+        - id: chg_0002
+          time: 285
+          service: recommendation
+          kind: runtime_config_change
+          summary: recommendation scoring parameter changed
+          diff_touches:
+            - scoring
+    truth:
+      root_cause:
+        kind: edge
+        caller: load-generator
+        callee: frontend
+        type: traffic_flood
+
+  - id: kafka_queue_problems_001
+    display_name: Kafka queue backlog
+    raw_flag_key: kafkaQueueProblems
+    variant: "on"
+    timing:
+      warmup_seconds: 180
+      injection_at_seconds: 300
+      recording_seconds: 900
+    workload:
+      profile: checkout_steady
+      users: 20
+      spawn_rate: 2
+    public:
+      symptom: Fraud-detection processing lagged and queue-related latency increased during the recording window.
+      sanitized_change:
+        id: chg_0003
+        time: 300
+        service: checkout
+        kind: runtime_config_change
+        summary: async fraud event publishing configuration changed
+        diff_touches:
+          - fraud_events
+          - queue_publisher
+      decoy_changes:
+        - id: chg_0001
+          time: 270
+          service: frontend
+          kind: deploy
+          summary: frontend copy and layout assets changed
+          diff_touches:
+            - copy
+            - layout_assets
+        - id: chg_0002
+          time: 285
+          service: payment
+          kind: runtime_config_change
+          summary: payment provider timeout parameter changed
+          diff_touches:
+            - payment_provider
+    truth:
+      root_cause:
+        kind: service
+        service: kafka
+        type: queue_backlog
