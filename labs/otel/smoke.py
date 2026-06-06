@@ -11,7 +11,9 @@ from labs.otel.source import (
     OPENSEARCH_CONTAINER_NAME,
     OPENSEARCH_CONTAINER_PORT,
     docker_published_url,
+    flagd_ui_base_url,
     frontend_proxy_base_url,
+    jaeger_query_base_url,
     prometheus_base_url,
 )
 
@@ -42,14 +44,18 @@ def default_targets(
     if opensearch_url is None:
         opensearch_url = docker_published_url(OPENSEARCH_CONTAINER_NAME, OPENSEARCH_CONTAINER_PORT)
     opensearch = opensearch_url.rstrip("/")
+    # flagd-ui and Jaeger are read on their own container ports, matching the
+    # recorder, since the frontend proxy's /feature and /jaeger/ui routes are unreliable.
+    flagd = flagd_ui_base_url()
+    jaeger = jaeger_query_base_url()
 
     return [
         SmokeTarget("frontend", f"{frontend}/"),
-        SmokeTarget("flagd_ui_api", f"{frontend}/feature/api/read"),
+        SmokeTarget("flagd_ui_api", f"{flagd}/api/read"),
         SmokeTarget("prometheus_ready", f"{prometheus}/-/ready"),
         SmokeTarget("prometheus_query", f"{prometheus}/api/v1/query?query=up"),
-        SmokeTarget("jaeger_ui", f"{frontend}/jaeger/ui/"),
-        SmokeTarget("jaeger_services_api", f"{frontend}{JAEGER_API_BASE_PATH}/services"),
+        SmokeTarget("jaeger_ui", f"{jaeger}/"),
+        SmokeTarget("jaeger_services_api", f"{jaeger}{JAEGER_API_BASE_PATH}/services"),
         SmokeTarget("opensearch_health", f"{opensearch}/_cluster/health"),
     ]
 

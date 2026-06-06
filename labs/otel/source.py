@@ -40,6 +40,10 @@ JAEGER_UI_URL = f"{FRONTEND_PROXY_BASE_URL}/jaeger/ui"
 JAEGER_API_BASE_PATH = "/jaeger/ui/api"
 OPENSEARCH_CONTAINER_NAME = "opensearch"
 OPENSEARCH_CONTAINER_PORT = 9200
+JAEGER_CONTAINER_NAME = "jaeger"
+JAEGER_CONTAINER_PORT = 16686
+FLAGD_UI_CONTAINER_NAME = "flagd-ui"
+FLAGD_UI_CONTAINER_PORT = 4000
 
 
 @dataclass(frozen=True)
@@ -88,7 +92,30 @@ def frontend_proxy_base_url() -> str:
 
 
 def flagd_ui_base_url() -> str:
-    return os.environ.get("SENTINEL_OTEL_FLAGD_UI_BASE_URL", f"{frontend_proxy_base_url()}/feature").rstrip("/")
+    """Base URL for the flagd-ui control API.
+
+    Defaults to the flagd-ui container's own published port. The frontend proxy's
+    /feature route is not reliably available, so the recorder reads the backend
+    container directly, matching the OpenSearch client.
+    """
+
+    return os.environ.get(
+        "SENTINEL_OTEL_FLAGD_UI_BASE_URL",
+        docker_published_url(FLAGD_UI_CONTAINER_NAME, FLAGD_UI_CONTAINER_PORT),
+    ).rstrip("/")
+
+
+def jaeger_query_base_url() -> str:
+    """Base URL for the Jaeger query API, which serves under JAEGER_API_BASE_PATH.
+
+    Defaults to the Jaeger container's own published port for the same reason as
+    flagd-ui: the frontend proxy's /jaeger/ui route is not reliably available.
+    """
+
+    return os.environ.get(
+        "SENTINEL_OTEL_JAEGER_BASE_URL",
+        docker_published_url(JAEGER_CONTAINER_NAME, JAEGER_CONTAINER_PORT),
+    ).rstrip("/")
 
 
 def prometheus_base_url() -> str:

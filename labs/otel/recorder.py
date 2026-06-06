@@ -16,7 +16,7 @@ from labs.otel.source import (
     OPENSEARCH_CONTAINER_NAME,
     OPENSEARCH_CONTAINER_PORT,
     docker_published_url,
-    frontend_proxy_base_url,
+    jaeger_query_base_url,
     prometheus_base_url,
 )
 
@@ -78,16 +78,16 @@ class PrometheusClient:
 
 @dataclass(frozen=True)
 class JaegerClient:
-    frontend_base_url: str
+    base_url: str
     timeout_seconds: float = 10.0
 
     @classmethod
     def from_environment(cls) -> JaegerClient:
-        return cls(frontend_proxy_base_url())
+        return cls(jaeger_query_base_url())
 
     @property
     def api_base_url(self) -> str:
-        return f"{self.frontend_base_url.rstrip('/')}{JAEGER_API_BASE_PATH}"
+        return f"{self.base_url.rstrip('/')}{JAEGER_API_BASE_PATH}"
 
     def services(self) -> list[str]:
         payload = _get_json(f"{self.api_base_url}/services", self.timeout_seconds)
