@@ -1,0 +1,20 @@
+{
+  "available_signals": [
+    "metrics",
+    "logs",
+    "traces",
+    "changes"
+  ],
+  "notes": [
+    "Recorded from OpenTelemetry Demo pinned commit b6f5c1ac7328fa57f2681e9c74574f1698847abb.",
+    "Feature flag names and private injection metadata are intentionally redacted."
+  ],
+  "scenario_id": "payment_failure_001",
+  "source": "opentelemetry-demo",
+  "symptom": "Checkout payment attempts started failing during the recording window.",
+  "time_unit": "second",
+  "window": {
+    "end": 900,
+    "start": 0
+  }
+}
