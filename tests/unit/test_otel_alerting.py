@@ -65,3 +65,14 @@ def test_derived_alert_roundtrips():
         value=0.25, expr="sum(...)", fingerprint="abc123",
     )
     assert a.model_dump(mode="json")["starts_at_second"] == 312
+
+
+def test_rules_are_symptom_scoped_and_allowlisted():
+    from labs.otel.alerting import load_rules, ALLOWED_ALERTNAMES
+    rules = load_rules()
+    assert len(rules) >= 3
+    downstream = ["payment", "cart", "ad", "recommendation", "product-catalog", "kafka", "shipping"]
+    for r in rules:
+        assert r.alertname in ALLOWED_ALERTNAMES
+        assert ('service_name="frontend"' in r.expr) or ('service_name="checkout"' in r.expr)
+        assert not any(f'service_name="{d}"' in r.expr for d in downstream)

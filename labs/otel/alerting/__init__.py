@@ -9,6 +9,7 @@ from labs.otel.alerting.allowlist import (
     assert_alert_is_symptom_level,
     assert_rule_templates_safe,
 )
+from labs.otel.alerting.schema import AlertRule, load_rules
 
 __all__ = [
     "ALLOWED_ALERTNAMES",
@@ -18,4 +19,6 @@ __all__ = [
     "AllowlistError",
     "assert_alert_is_symptom_level",
     "assert_rule_templates_safe",
+    "AlertRule",
+    "load_rules",
 ]

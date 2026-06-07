@@ -1,0 +1,46 @@
+rules:
+  - alertname: CheckoutFailureRate
+    expr: >-
+      sum(rate(traces_span_metrics_calls_total{service_name="checkout",status_code="STATUS_CODE_ERROR"}[3m]))
+      / sum(rate(traces_span_metrics_calls_total{service_name="checkout"}[3m]))
+    threshold: 0.10
+    comparison: ">"
+    for_seconds: 60
+    severity: critical
+    labels: {tier: user_facing, signal: checkout_error_rate}
+    annotation_templates:
+      summary: "Checkout failure rate {{value}} since second {{starts_at}}"
+
+  - alertname: FrontendHighErrorRate
+    expr: >-
+      sum(rate(traces_span_metrics_calls_total{service_name="frontend",status_code="STATUS_CODE_ERROR"}[3m]))
+      / sum(rate(traces_span_metrics_calls_total{service_name="frontend"}[3m]))
+    threshold: 0.05
+    comparison: ">"
+    for_seconds: 60
+    severity: critical
+    labels: {tier: user_facing, signal: error_rate}
+    annotation_templates:
+      summary: "User-facing error rate {{value}} since second {{starts_at}}"
+
+  - alertname: FrontendHighLatency
+    expr: >-
+      histogram_quantile(0.95, sum(rate(traces_span_metrics_duration_milliseconds_bucket{service_name="frontend"}[3m])) by (le))
+    threshold: 200
+    comparison: ">"
+    for_seconds: 60
+    severity: warning
+    labels: {tier: user_facing, signal: latency_p95}
+    annotation_templates:
+      summary: "User-facing p95 latency {{value}}ms since second {{starts_at}}"
+
+  - alertname: CheckoutHighLatency
+    expr: >-
+      histogram_quantile(0.95, sum(rate(traces_span_metrics_duration_milliseconds_bucket{service_name="checkout"}[3m])) by (le))
+    threshold: 250
+    comparison: ">"
+    for_seconds: 60
+    severity: warning
+    labels: {tier: user_facing, signal: checkout_latency_p95}
+    annotation_templates:
+      summary: "Checkout p95 latency {{value}}ms since second {{starts_at}}"
