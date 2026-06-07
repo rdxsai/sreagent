@@ -90,6 +90,7 @@ def test_assemble_recorded_fixture_writes_sealed_public_and_eval_files(tmp_path)
         scenario,
         tmp_path,
         _capture(),
+        prometheus=FakeAlertingPrometheus(),
         flag_snapshot_before={"flags": {"paymentUnreachable": {"defaultVariant": "off"}}},
         flag_snapshot_after={"flags": {"paymentUnreachable": {"defaultVariant": "on"}}},
         options=RecordingOptions(
@@ -113,6 +114,10 @@ def test_assemble_recorded_fixture_writes_sealed_public_and_eval_files(tmp_path)
     assert "paymentUnreachable" not in public_text
     assert (scenario_dir / "eval_only" / "raw_flag_snapshot.before.json").exists()
     assert (scenario_dir / "eval_only" / "raw_flag_snapshot.after.json").exists()
+    alertnames = {a.alertname for a in public.manifest.alerts}
+    assert public.manifest.alerts  # non-empty frozen set
+    assert "CheckoutFailureRate" in alertnames
+    assert all(a.labels.get("tier") == "user_facing" for a in public.manifest.alerts)
 
 
 def _capture() -> RawTelemetryCapture:
@@ -222,3 +227,10 @@ class FakeOpenSearch:
                 }
             }
         ]
+
+
+class FakeAlertingPrometheus:
+    # returns a breaching error-rate series (value 0.5) for any rule expr, lasting 60s from offset 300
+    def query_range(self, query, *, start, end, step):
+        values = [[start + off, "0.5"] for off in (300, 315, 330, 345, 360)]
+        return {"result": [{"metric": {}, "values": values}]}

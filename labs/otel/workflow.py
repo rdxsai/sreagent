@@ -10,6 +10,7 @@ from typing import Any, Callable, Protocol
 
 import yaml
 
+from labs.otel.alerting import derive_alerts, load_rules
 from labs.otel.normalizer import (
     normalize_jaeger_traces,
     normalize_opensearch_logs,
@@ -281,6 +282,7 @@ def assemble_recorded_fixture(
     output_dir: Path,
     capture: RawTelemetryCapture,
     *,
+    prometheus: PrometheusRangeClient,
     flag_snapshot_before: dict[str, Any] | None = None,
     flag_snapshot_after: dict[str, Any] | None = None,
     recorded_at: datetime | None = None,
@@ -302,7 +304,7 @@ def assemble_recorded_fixture(
 
     write_fixture(
         scenario_dir,
-        manifest=_manifest(scenario),
+        manifest=_manifest(scenario, capture, prometheus),
         metrics=metrics,
         logs=logs,
         traces=traces,
@@ -354,6 +356,7 @@ def record_scenario_definition(
             scenario,
             output_dir,
             capture,
+            prometheus=telemetry_clients.prometheus,
             flag_snapshot_before=flag_snapshot_before,
             flag_snapshot_after=flag_snapshot_after,
             options=options,
@@ -377,7 +380,17 @@ def _normalize_metrics(capture: RawTelemetryCapture) -> list[MetricRow]:
     return rows
 
 
-def _manifest(scenario: ScenarioDefinition) -> PublicManifest:
+def _manifest(
+    scenario: ScenarioDefinition,
+    capture: RawTelemetryCapture,
+    prometheus: PrometheusRangeClient,
+) -> PublicManifest:
+    alerts = derive_alerts(
+        window_start_epoch_seconds=capture.window_start_epoch_seconds,
+        window_end_epoch_seconds=capture.window_end_epoch_seconds,
+        prometheus=prometheus,
+        rules=load_rules(),
+    )
     return PublicManifest(
         scenario_id=scenario.id,
         source="opentelemetry-demo",
@@ -389,6 +402,7 @@ def _manifest(scenario: ScenarioDefinition) -> PublicManifest:
             f"Recorded from OpenTelemetry Demo pinned commit {OTEL_DEMO_GIT_SHA}.",
             "Feature flag names and private injection metadata are intentionally redacted.",
         ],
+        alerts=alerts,
     )
 
 
