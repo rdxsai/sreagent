@@ -35,6 +35,10 @@ def _scenario(name: str) -> Scenario:
 SCENARIOS: list[Scenario] = [
     _scenario("payment_failure_001"),
     _scenario("payment_unreachable_001"),
+    _scenario("product_catalog_failure_001"),
+    _scenario("cart_failure_001"),
+    _scenario("ad_manual_gc_001"),
+    _scenario("ad_high_cpu_001"),
 ]
 
 

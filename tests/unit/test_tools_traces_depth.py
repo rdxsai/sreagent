@@ -10,6 +10,7 @@ from sentinel.tools.models import (
     ComparePrePostInput,
     ErrorSummaryInput,
     GetTraceInput,
+    LatencyOriginInput,
     NoArgs,
     SlowestInput,
 )
@@ -17,6 +18,8 @@ from sentinel.tools.store import FixtureStore
 
 ROOT = Path(__file__).resolve().parents[2]
 FAILURE = FixtureStore(ROOT / "fixtures" / "payment_failure_001" / "public")
+AD_GC = FixtureStore(ROOT / "fixtures" / "ad_manual_gc_001" / "public")
+CART = FixtureStore(ROOT / "fixtures" / "cart_failure_001" / "public")
 
 
 def _payment_error_trace() -> str:
@@ -66,3 +69,13 @@ def test_compare_pre_post_finds_failing_charge_trace() -> None:
         ComparePrePostInput(operation_contains="Charge", onset_second=onset), FAILURE
     )
     assert out.failing_trace_id is not None  # payment charges fail after onset
+
+
+def test_latency_origin_localizes_ad_for_gc_fault() -> None:
+    out = traces.traces_latency_origin(LatencyOriginInput(onset_second=300), AD_GC)
+    assert out.service == "ad"  # ad's own GC pause is the slow self-time, not a downstream wait
+
+
+def test_latency_origin_localizes_cart_for_slowdown() -> None:
+    out = traces.traces_latency_origin(LatencyOriginInput(onset_second=300), CART)
+    assert out.service == "cart"

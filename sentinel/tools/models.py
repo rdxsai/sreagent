@@ -108,6 +108,8 @@ __all__ = [
     "ReportCheck",
     "ServiceTraceSummary",
     "OnsetConsensus",
+    "LatencyOriginInput",
+    "LatencyOrigin",
 ]
 
 SpanKind = Literal["server", "client", "internal", "producer", "consumer"]
@@ -720,3 +722,15 @@ class OnsetConsensus(BaseModel):
     consensus_onset_second: int | None = Field(default=None, description="the earliest corroborated onset to anchor on")
     agreement: bool = Field(description="true if the trace and log onsets are within one minute")
     note: str | None = None
+
+
+class LatencyOriginInput(BaseModel):
+    onset_second: int = Field(default=0, ge=0, description="only consider spans at/after this second")
+    min_self_ms: float = Field(default=50.0, ge=0.0, description="ignore services whose own work is faster than this")
+
+
+class LatencyOrigin(BaseModel):
+    service: str | None = Field(default=None, description="the service whose own work (self-time) is slowest")
+    self_latency_p95_ms: float = Field(default=0.0, description="p95 of the service's own time, excluding downstream waits")
+    self_latency_max_ms: float = 0.0
+    evidence: list[str] = Field(default_factory=list)

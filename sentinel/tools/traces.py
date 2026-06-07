@@ -24,6 +24,8 @@ from sentinel.tools.models import (
     GetTraceInput,
     GetTraceOutput,
     LatencyBreakdownOutput,
+    LatencyOrigin,
+    LatencyOriginInput,
     NoArgs,
     Onset,
     OperationLatency,
@@ -49,6 +51,15 @@ def _p95(values: list[float]) -> float:
         return 0.0
     ordered = sorted(values)
     return ordered[min(len(ordered) - 1, int(0.95 * len(ordered)))]
+
+
+# Synchronous request-path services for latency localization. Excludes the load
+# generator and proxies (their own spans are long-lived by design) and the
+# async/batch consumers (which pin to the histogram ceiling), so latency_origin
+# attributes to a real request-path service, not infra noise.
+_APP_SERVICES = frozenset(
+    {"frontend", "checkout", "cart", "currency", "product-catalog", "recommendation", "ad", "shipping", "quote", "payment"}
+)
 
 
 def _is_error(row: TraceRow) -> bool:
@@ -113,6 +124,44 @@ def traces_first_error_time(params: NoArgs, store: TelemetryStore) -> Onset:
         service=first.service,
         span_kind=span_kind(first),
         trace_id=first.trace_id,
+    )
+
+
+@tool(namespace="traces")
+def traces_latency_origin(params: LatencyOriginInput, store: TelemetryStore) -> LatencyOrigin:
+    """Locate where latency originates: the service whose own work is slowest.
+
+    The latency counterpart to traces_error_origin. For each span it computes self
+    time (its duration minus the slowest child it waited on), so a service that is
+    slow only because a downstream is slow does not score; the service with the
+    highest own self-time is the latency origin (a GC pause, a slow handler). Use
+    this for slowdown incidents the error tools cannot localize.
+    """
+    by_service: dict[str, list[float]] = defaultdict(list)
+    for span in store.find_spans(start=params.onset_second):
+        if span.service not in _APP_SERVICES:
+            continue  # skip load generator, proxies, and async/batch consumers
+        child_max = max((c.duration_ms for c in store.children_of(span.span_id)), default=0.0)
+        self_time = max(0.0, span.duration_ms - child_max)
+        if self_time >= params.min_self_ms:
+            by_service[span.service].append(self_time)
+    ranked = sorted(
+        ((svc, _p95(vals), max(vals)) for svc, vals in by_service.items()),
+        key=lambda x: x[1],
+        reverse=True,
+    )
+    if not ranked:
+        return LatencyOrigin(evidence=[f"no spans with self-time >= {params.min_self_ms}ms after onset"])
+    svc, p95_self, max_self = ranked[0]
+    runners_up = ", ".join(f"{s}:{p:.0f}ms" for s, p, _m in ranked[1:4])
+    return LatencyOrigin(
+        service=svc,
+        self_latency_p95_ms=p95_self,
+        self_latency_max_ms=max_self,
+        evidence=[
+            f"{svc} has the highest own self-time (p95 {p95_self:.0f}ms, max {max_self:.0f}ms), not just waiting downstream",
+            f"next: {runners_up}" if runners_up else "no other service has meaningful self-time",
+        ],
     )
 
 

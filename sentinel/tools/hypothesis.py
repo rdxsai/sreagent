@@ -109,12 +109,15 @@ def hypothesis_gather_evidence(params: GatherEvidenceInput, store: TelemetryStor
 
 @tool(namespace="hypothesis")
 def hypothesis_rule_out(params: RuleOutInput, store: TelemetryStore) -> RuleOutVerdict:
-    """Test whether a suspected service or change can be eliminated.
+    """Eliminate an uninvolved service, or a change that postdates onset.
 
-    A change at or after onset is ruled out (a cause must precede its symptom). A
-    service with no own server errors and no latency/CPU shift after onset is
-    ruled out as the originating service (its errors, if any, are propagated from
-    downstream). Use it to discharge decoys before submitting the report.
+    Best for services: one with no own server errors and no latency/CPU rise after
+    onset is ruled out as the origin (its errors, if any, are propagated from
+    downstream). For changes it only checks timing: a change at or after onset is
+    ruled out. It does NOT disambiguate same-service changes that both precede onset
+    (e.g. a real culprit vs a near-miss decoy on the same service); for that, read
+    their content with changes_search and compare diff_touches to the failure. So
+    use it once per candidate service, not once per change.
     """
     if params.change_id is not None:
         match = [c for c in store.list_changes() if c.id == params.change_id]
@@ -128,7 +131,11 @@ def hypothesis_rule_out(params: RuleOutInput, store: TelemetryStore) -> RuleOutV
             )
         return RuleOutVerdict(
             ruled_out=False,
-            reason=f"change {change.id} at second {change.time} precedes onset {params.onset_second}; still a candidate",
+            reason=(
+                f"change {change.id} at second {change.time} precedes onset {params.onset_second}; "
+                "still a candidate. To choose among same-service candidates, compare their "
+                "diff_touches against the failure via changes_search, not this tool."
+            ),
         )
     if params.service is not None:
         if _own_fault(store, params.service, params.onset_second):
