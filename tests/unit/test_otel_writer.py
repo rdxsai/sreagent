@@ -7,6 +7,7 @@ from labs.otel.writer import write_fixture
 from sentinel.fixtures import load_public_fixture
 from sentinel.fixtures.schemas import (
     ChangeEvent,
+    DerivedAlert,
     InjectionMetadata,
     LogRow,
     MetricRow,
@@ -89,6 +90,18 @@ def _manifest(symptom: str = "Checkout failures increased.") -> PublicManifest:
         window=TimeWindow(start=0, end=120),
         symptom=symptom,
         available_signals=["metrics", "logs", "traces", "changes"],
+        alerts=[
+            DerivedAlert(
+                alertname="CheckoutFailureRate",
+                severity="critical",
+                starts_at_second=60,
+                labels={"tier": "user_facing", "signal": "checkout_error_rate"},
+                annotations={"summary": "Checkout failure rate 0.25 since second 60"},
+                value=0.25,
+                expr="sum(rate(...))",
+                fingerprint="ab12cd34ef56ab78",
+            )
+        ],
     )
 
 

@@ -10,5 +10,17 @@
   "available_signals": ["metrics", "logs", "traces", "changes"],
   "notes": [
     "Feature flag names and private injection metadata are intentionally redacted."
+  ],
+  "alerts": [
+    {
+      "alertname": "CheckoutFailureRate",
+      "severity": "critical",
+      "starts_at_second": 60,
+      "labels": {"tier": "user_facing", "signal": "checkout_error_rate"},
+      "annotations": {"summary": "Checkout failure rate 0.25 since second 60"},
+      "value": 0.25,
+      "expr": "sum(rate(traces_span_metrics_calls_total{service_name=\"checkout\",status_code=\"STATUS_CODE_ERROR\"}[3m])) / sum(rate(traces_span_metrics_calls_total{service_name=\"checkout\"}[3m]))",
+      "fingerprint": "ab12cd34ef56ab78"
+    }
   ]
 }
