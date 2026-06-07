@@ -1,6 +1,17 @@
 # Initial v1 scenario catalog for OpenTelemetry Demo recordings.
 #
 # This config is controller input and must not be passed to agent tools.
+#
+# Active set (locked 2026-06-07): payment_failure_001, payment_unreachable_001,
+#   recommendation_cache_failure_001, product_catalog_failure_001, ad_high_cpu_001,
+#   ad_manual_gc_001. All six surface a clean, leak-safe, trace-attributable signal
+#   under load (errors for payment/product-catalog, latency for recommendation, and ad
+#   server-span latency + CPU/GC for the ad faults). Each fires the single unified
+#   UserFacingDegradation trigger. Each carries one culprit (chg_0003) plus five decoys.
+# Deferred: load_generator_flood_homepage_001 (throughput surge), kafka_queue_problems_001
+#   (async consumer lag). Their signals are real under load but attribute via rate/lag
+#   metrics rather than span.kind, so they need extra agent reasoning + metric families;
+#   added as a clean extension after the six. See handoff.md.
 
 scenarios:
   - id: payment_failure_001
@@ -42,6 +53,27 @@ scenarios:
           summary: recommendation scoring parameter changed
           diff_touches:
             - scoring
+        - id: chg_0004
+          time: 350
+          service: payment
+          kind: runtime_config_change
+          summary: payment retry budget adjusted
+          diff_touches:
+            - retry_budget
+        - id: chg_0005
+          time: 255
+          service: currency
+          kind: runtime_config_change
+          summary: currency rate cache TTL changed
+          diff_touches:
+            - rate_cache
+        - id: chg_0006
+          time: 330
+          service: shipping
+          kind: runtime_config_change
+          summary: shipping rate table updated
+          diff_touches:
+            - rate_table
     truth:
       root_cause:
         kind: service
@@ -87,6 +119,27 @@ scenarios:
           summary: recommendation scoring parameter changed
           diff_touches:
             - scoring
+        - id: chg_0004
+          time: 350
+          service: checkout
+          kind: runtime_config_change
+          summary: checkout request timeout adjusted
+          diff_touches:
+            - timeout_config
+        - id: chg_0005
+          time: 255
+          service: cart
+          kind: runtime_config_change
+          summary: cart session retention parameter changed
+          diff_touches:
+            - session_store
+        - id: chg_0006
+          time: 330
+          service: email
+          kind: deploy
+          summary: order confirmation email template updated
+          diff_touches:
+            - email_template
     truth:
       root_cause:
         kind: edge
@@ -133,6 +186,27 @@ scenarios:
           summary: payment provider timeout parameter changed
           diff_touches:
             - payment_provider
+        - id: chg_0004
+          time: 350
+          service: recommendation
+          kind: runtime_config_change
+          summary: recommendation ranking weights updated
+          diff_touches:
+            - ranking_weights
+        - id: chg_0005
+          time: 255
+          service: cart
+          kind: runtime_config_change
+          summary: cart session retention parameter changed
+          diff_touches:
+            - session_store
+        - id: chg_0006
+          time: 330
+          service: shipping
+          kind: runtime_config_change
+          summary: shipping rate table updated
+          diff_touches:
+            - rate_table
     truth:
       root_cause:
         kind: service
@@ -178,6 +252,27 @@ scenarios:
           summary: cart session retention parameter changed
           diff_touches:
             - session_store
+        - id: chg_0004
+          time: 350
+          service: product-catalog
+          kind: runtime_config_change
+          summary: product image variant configuration changed
+          diff_touches:
+            - image_variants
+        - id: chg_0005
+          time: 255
+          service: currency
+          kind: runtime_config_change
+          summary: currency rate cache TTL changed
+          diff_touches:
+            - rate_cache
+        - id: chg_0006
+          time: 330
+          service: recommendation
+          kind: runtime_config_change
+          summary: recommendation scoring parameter changed
+          diff_touches:
+            - scoring
     truth:
       root_cause:
         kind: service
@@ -223,6 +318,27 @@ scenarios:
           summary: recommendation scoring parameter changed
           diff_touches:
             - scoring
+        - id: chg_0004
+          time: 350
+          service: ad
+          kind: runtime_config_change
+          summary: ad creative cache size changed
+          diff_touches:
+            - creative_cache
+        - id: chg_0005
+          time: 255
+          service: cart
+          kind: runtime_config_change
+          summary: cart session retention parameter changed
+          diff_touches:
+            - session_store
+        - id: chg_0006
+          time: 330
+          service: currency
+          kind: runtime_config_change
+          summary: currency rate cache TTL changed
+          diff_touches:
+            - rate_cache
     truth:
       root_cause:
         kind: service
@@ -268,6 +384,27 @@ scenarios:
           summary: payment provider timeout parameter changed
           diff_touches:
             - payment_provider
+        - id: chg_0004
+          time: 350
+          service: ad
+          kind: runtime_config_change
+          summary: ad creative cache size changed
+          diff_touches:
+            - creative_cache
+        - id: chg_0005
+          time: 255
+          service: shipping
+          kind: runtime_config_change
+          summary: shipping rate table updated
+          diff_touches:
+            - rate_table
+        - id: chg_0006
+          time: 330
+          service: cart
+          kind: runtime_config_change
+          summary: cart session retention parameter changed
+          diff_touches:
+            - session_store
     truth:
       root_cause:
         kind: service
