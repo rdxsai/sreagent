@@ -29,7 +29,7 @@ scenarios:
       users: 20
       spawn_rate: 2
     public:
-      symptom: Checkout payment attempts started failing during the recording window.
+      symptom: Checkout attempts started failing during the recording window.
       sanitized_change:
         id: chg_0003
         time: 300
@@ -228,7 +228,7 @@ scenarios:
       users: 20
       spawn_rate: 2
     public:
-      symptom: A subset of product detail requests failed during the recording window.
+      symptom: Product detail requests failed during the recording window.
       sanitized_change:
         id: chg_0003
         time: 300
@@ -294,7 +294,7 @@ scenarios:
       users: 20
       spawn_rate: 2
     public:
-      symptom: Ad responses slowed and ad service resource use increased during the recording window.
+      symptom: Ad responses slowed during the recording window.
       sanitized_change:
         id: chg_0003
         time: 300
@@ -360,7 +360,7 @@ scenarios:
       users: 20
       spawn_rate: 2
     public:
-      symptom: Ad responses slowed with memory-management pressure during the recording window.
+      symptom: Ad responses slowed during the recording window.
       sanitized_change:
         id: chg_0003
         time: 300
