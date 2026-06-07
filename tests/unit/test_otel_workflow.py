@@ -116,7 +116,7 @@ def test_assemble_recorded_fixture_writes_sealed_public_and_eval_files(tmp_path)
     assert (scenario_dir / "eval_only" / "raw_flag_snapshot.after.json").exists()
     alertnames = {a.alertname for a in public.manifest.alerts}
     assert public.manifest.alerts  # non-empty frozen set
-    assert "CheckoutFailureRate" in alertnames
+    assert alertnames == {"UserFacingDegradation"}  # unified leak-safe trigger
     assert all(a.labels.get("tier") == "user_facing" for a in public.manifest.alerts)
 
 

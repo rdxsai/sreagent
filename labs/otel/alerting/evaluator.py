@@ -47,10 +47,22 @@ def derive_alerts(
             firings.append(firing)
     if not firings:
         raise NoAlertFired("no symptom rule fired over the recorded window")
-    return sorted(
+    ordered = sorted(
         firings,
         key=lambda a: (_SEVERITY_RANK[a.severity], a.starts_at_second, a.alertname),
     )
+    # Collapse rules that resolve to the same alert (same fingerprint = same
+    # alertname + labels). The unified UserFacingDegradation trigger is built from
+    # an error rule and a latency rule sharing a fingerprint; if both fire we keep
+    # one alert, the highest-severity / earliest by the sort above.
+    deduped: list[DerivedAlert] = []
+    seen: set[str] = set()
+    for alert in ordered:
+        if alert.fingerprint in seen:
+            continue
+        seen.add(alert.fingerprint)
+        deduped.append(alert)
+    return deduped
 
 
 def _first_continuous_breach(
