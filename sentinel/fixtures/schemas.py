@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_validator, model_validator
 
@@ -32,6 +33,18 @@ class PublicManifest(StrictModel):
     symptom: str = Field(min_length=1)
     available_signals: list[str] = Field(min_length=1)
     notes: list[str] = Field(default_factory=list)
+    alerts: list[DerivedAlert] = Field(min_length=1)   # the frozen firing SET (>=1). The agent triages.
+
+
+class DerivedAlert(StrictModel):
+    alertname: str = Field(min_length=1)        # from the symptom allow-list
+    severity: Literal["warning", "critical"]
+    starts_at_second: int = Field(ge=0)         # window-relative onset of the symptom
+    labels: dict[str, str] = Field(default_factory=dict)        # symptom-level only
+    annotations: dict[str, str] = Field(default_factory=dict)   # templated from value/starts_at only
+    value: float                                # breaching value of the symptom series
+    expr: str = Field(min_length=1)             # the PromQL that fired (symptom series only)
+    fingerprint: str = Field(min_length=1)      # stable hash of alertname + sorted labels
 
 
 class TopologyEdge(StrictModel):
