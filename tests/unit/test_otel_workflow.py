@@ -29,8 +29,8 @@ def test_load_scenarios_reads_catalog() -> None:
     assert scenario_ids == {
         "payment_failure_001",
         "payment_unreachable_001",
-        "recommendation_cache_failure_001",
         "product_catalog_failure_001",
+        "cart_failure_001",
         "ad_high_cpu_001",
         "ad_manual_gc_001",
         "load_generator_flood_homepage_001",
