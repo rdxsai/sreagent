@@ -9,12 +9,14 @@
 # Thresholds are drafts pending calibration against a clean baseline under the
 # recording load; they are finalized before any real recording.
 rules:
-  # User-facing error rate at the edge (frontend + checkout). Catches the error
-  # faults: payment_failure, payment_unreachable, product_catalog.
+  # Max per-service error rate at the user-facing edge (frontend, checkout).
+  # Per-service (not pooled) so a low-volume erroring service like checkout is not
+  # diluted by high-volume browse traffic on frontend. Catches the error faults:
+  # payment_failure, payment_unreachable, product_catalog.
   - alertname: UserFacingDegradation
     expr: >-
-      sum(rate(traces_span_metrics_calls_total{service_name=~"frontend|checkout",status_code="STATUS_CODE_ERROR"}[3m]))
-      / clamp_min(sum(rate(traces_span_metrics_calls_total{service_name=~"frontend|checkout"}[3m])), 1e-9)
+      max(sum by (service_name) (rate(traces_span_metrics_calls_total{service_name=~"frontend|checkout",status_code="STATUS_CODE_ERROR"}[3m]))
+      / sum by (service_name) (rate(traces_span_metrics_calls_total{service_name=~"frontend|checkout"}[3m])))
     threshold: 0.05
     comparison: ">"
     for_seconds: 60
@@ -33,6 +35,23 @@ rules:
     expr: >-
       max(histogram_quantile(0.95, sum by (le, service_name) (rate(traces_span_metrics_duration_milliseconds_bucket{service_name=~"frontend|cart|currency|product-catalog|recommendation|ad|shipping|quote|payment",span_kind="SPAN_KIND_SERVER"}[3m]))))
     threshold: 120
+    comparison: ">"
+    for_seconds: 60
+    severity: critical
+    labels: {tier: user_facing, signal: degradation}
+    annotation_templates:
+      summary: "Degradation detected since second {{starts_at}}"
+
+  # Max CPU cores used by an application service, as rate of the cpu-usage counter
+  # (the container_cpu_utilization_ratio gauge is unreliable on this host). Catches
+  # CPU-saturation faults like ad_high_cpu, where a service pegs cores without its
+  # request latency rising. Application containers only (infra and async/batch
+  # excluded), and the threshold sits well above the busiest baseline service
+  # (~0.43 cores) so nothing false-fires at baseline.
+  - alertname: UserFacingDegradation
+    expr: >-
+      max(rate(container_cpu_usage_nanoseconds_total{container_name=~"frontend|cart|currency|product-catalog|recommendation|ad|shipping|quote|payment|checkout|email"}[3m]) / 1000000000)
+    threshold: 2.0
     comparison: ">"
     for_seconds: 60
     severity: critical

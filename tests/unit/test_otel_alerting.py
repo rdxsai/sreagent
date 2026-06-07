@@ -76,7 +76,8 @@ def test_rules_are_unified_and_leak_safe():
     assert all(r.alertname in ALLOWED_ALERTNAMES for r in rules)
     error_rules = [r for r in rules if "status_code" in r.expr]
     latency_rules = [r for r in rules if "histogram_quantile" in r.expr]
-    assert error_rules and latency_rules
+    cpu_rules = [r for r in rules if "container_cpu_usage" in r.expr]
+    assert error_rules and latency_rules and cpu_rules
     # error rule scoped to the user-facing edge
     assert all("frontend|checkout" in r.expr for r in error_rules)
     # latency rule aggregates over a generic service set (=~ with alternation),

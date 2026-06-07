@@ -155,6 +155,20 @@ DEFAULT_METRIC_QUERIES: tuple[MetricQuery, ...] = (
             "(rate(traces_span_metrics_duration_milliseconds_bucket[3m])))"
         ),
     ),
+    # Per-service CPU cores in use, as rate of the cpu-usage counter (the
+    # container_cpu_utilization_ratio gauge is unreliable on this host). Keyed by
+    # container_name; app containers only. Lets the agent see CPU-saturation faults
+    # (e.g. ad_high_cpu) where latency stays normal but cores are pegged.
+    MetricQuery(
+        metric_name="cpu_cores",
+        unit="cores",
+        query=(
+            'rate(container_cpu_usage_nanoseconds_total{container_name=~'
+            '"frontend|cart|currency|product-catalog|recommendation|ad|shipping|quote|payment|checkout|email"}'
+            "[3m]) / 1000000000"
+        ),
+        service_label="container_name",
+    ),
 )
 
 SleepFn = Callable[[float], None]
