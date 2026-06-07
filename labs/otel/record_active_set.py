@@ -95,7 +95,10 @@ def main(argv: list[str] | None = None) -> int:
     try:
         for sid in ids:
             print(f"\n=== recording {sid} ===", flush=True)
-            passed, errors = record_one(sid, tc)
+            try:
+                passed, errors = record_one(sid, tc)
+            except Exception as exc:  # one scenario failing must not abort the batch
+                passed, errors = False, [f"{type(exc).__name__}: {exc}"]
             results[sid] = (passed, errors)
             print(f"  {sid}: passed={passed} errors={errors}", flush=True)
     finally:
