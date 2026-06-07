@@ -1,9 +1,20 @@
 {
+  "ad_high_cpu_001": [
+    "UserFacingDegradation"
+  ],
+  "ad_manual_gc_001": [
+    "UserFacingDegradation"
+  ],
+  "cart_failure_001": [
+    "UserFacingDegradation"
+  ],
   "payment_failure_001": [
-    "CheckoutFailureRate",
-    "CheckoutHighLatency"
+    "UserFacingDegradation"
   ],
   "payment_unreachable_001": [
-    "CheckoutFailureRate"
+    "UserFacingDegradation"
+  ],
+  "product_catalog_failure_001": [
+    "UserFacingDegradation"
   ]
 }

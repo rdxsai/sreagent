@@ -1,19 +1,19 @@
 {
   "alerts": [
     {
-      "alertname": "CheckoutFailureRate",
+      "alertname": "UserFacingDegradation",
       "annotations": {
-        "summary": "Checkout failure rate 0.21428571428571427 since second 450"
+        "summary": "Degradation detected since second 390"
       },
-      "expr": "sum(rate(traces_span_metrics_calls_total{service_name=\"checkout\",status_code=\"STATUS_CODE_ERROR\"}[3m])) / sum(rate(traces_span_metrics_calls_total{service_name=\"checkout\"}[3m]))",
-      "fingerprint": "45eff36c1b207c68",
+      "expr": "max(sum by (service_name) (rate(traces_span_metrics_calls_total{service_name=~\"frontend|checkout\",status_code=\"STATUS_CODE_ERROR\"}[3m])) / sum by (service_name) (rate(traces_span_metrics_calls_total{service_name=~\"frontend|checkout\"}[3m])))",
+      "fingerprint": "caf9464ad7a93a48",
       "labels": {
-        "signal": "checkout_error_rate",
+        "signal": "degradation",
         "tier": "user_facing"
       },
       "severity": "critical",
-      "starts_at_second": 450,
-      "value": 0.21428571428571427
+      "starts_at_second": 390,
+      "value": 0.14255014326647564
     }
   ],
   "available_signals": [
@@ -31,7 +31,7 @@
   "symptom": "Checkout failures increased during the recording window.",
   "time_unit": "second",
   "window": {
-    "end": 900,
+    "end": 600,
     "start": 0
   }
 }

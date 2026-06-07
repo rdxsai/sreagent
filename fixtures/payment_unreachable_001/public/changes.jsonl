@@ -1,3 +1,6 @@
+{"diff_touches":["session_store"],"id":"chg_0005","kind":"runtime_config_change","service":"cart","summary":"cart session retention parameter changed","time":255}
 {"diff_touches":["copy","layout_assets"],"id":"chg_0001","kind":"deploy","service":"frontend","summary":"frontend copy and layout assets changed","time":270}
 {"diff_touches":["scoring"],"id":"chg_0002","kind":"runtime_config_change","service":"recommendation","summary":"recommendation scoring parameter changed","time":285}
 {"diff_touches":["payment_client","service_discovery"],"id":"chg_0003","kind":"runtime_config_change","service":"checkout","summary":"payment dependency routing configuration changed","time":300}
+{"diff_touches":["email_template"],"id":"chg_0006","kind":"deploy","service":"email","summary":"order confirmation email template updated","time":330}
+{"diff_touches":["timeout_config"],"id":"chg_0004","kind":"runtime_config_change","service":"checkout","summary":"checkout request timeout adjusted","time":350}

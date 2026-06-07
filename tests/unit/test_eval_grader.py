@@ -12,7 +12,7 @@ UNREACHABLE = next(s for s in SCENARIOS if s.id == "payment_unreachable_001")
 def test_task_prompt_states_symptom_and_alerts_without_naming_tools() -> None:
     prompt = build_task_prompt(FAILURE)
     assert "Symptom:" in prompt
-    assert "CheckoutFailureRate" in prompt
+    assert "UserFacingDegradation" in prompt
     assert "traces_" not in prompt and "metrics_" not in prompt  # selection is the model's job
 
 
@@ -21,7 +21,7 @@ def test_grade_correct_service_fault_report() -> None:
     report = {
         "root_cause": {"kind": "service", "service": "payment", "type": "payment_charge_failure"},
         "culprit_change_id": "chg_0003",
-        "ruled_out_change_ids": ["chg_0001", "chg_0002"],
+        "ruled_out_change_ids": ["chg_0001", "chg_0002", "chg_0004", "chg_0005", "chg_0006"],
     }
     result = grade(report, truth)
     assert result["correct"]
