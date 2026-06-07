@@ -15,15 +15,37 @@ from sentinel.tools.models import (
     CompareBaselineOutput,
     DetectShiftInput,
     DetectShiftOutput,
+    ErrorBudgetInput,
+    ErrorBudgetOutput,
     ListSeriesOutput,
+    MetricMover,
     MetricSeriesInput,
     NoArgs,
+    SaturationInput,
+    SaturationOutput,
     Series,
     SeriesKey,
     SeriesPoint,
+    ServiceCpu,
+    ServiceSnapshot,
+    SummaryAllInput,
+    SummaryAllOutput,
+    TopMoversInput,
+    TopMoversOutput,
 )
 from sentinel.registry import tool
 from sentinel.tools.store import TelemetryStore
+
+
+def _pre_post(store: TelemetryStore, service: str, metric: str, onset: int) -> tuple[float, float]:
+    rows = store.metric_series(service, metric)
+    pre = [r.value for r in rows if r.time < onset]
+    post = [r.value for r in rows if r.time >= onset]
+    return (fmean(pre) if pre else 0.0, fmean(post) if post else 0.0)
+
+
+def _services_with(store: TelemetryStore, metric: str) -> list[str]:
+    return sorted({s for s, m, _u in store.list_metric_keys() if m == metric})
 
 
 def _unit_for(store: TelemetryStore, service: str, metric: str) -> str:
@@ -157,3 +179,84 @@ def metrics_detect_shift(params: DetectShiftInput, store: TelemetryStore) -> Det
         after_mean=after_mean,
         magnitude=magnitude,
     )
+
+
+@tool(namespace="metrics")
+def metrics_top_movers(params: TopMoversInput, store: TelemetryStore) -> TopMoversOutput:
+    """Rank services by how much one metric changed across onset.
+
+    For the chosen metric (request_error_rate, latency_p95_ms, or cpu_cores),
+    returns every service's pre vs post mean and the delta, largest increase first.
+    One call surfaces which service moved most, the likely fault site, instead of
+    querying each service's series individually.
+    """
+    movers = []
+    for service in _services_with(store, params.metric):
+        pre, post = _pre_post(store, service, params.metric, params.onset_second)
+        movers.append(MetricMover(service=service, pre_mean=pre, post_mean=post, delta=post - pre))
+    movers.sort(key=lambda m: m.delta, reverse=True)
+    return TopMoversOutput(metric=params.metric, movers=movers[: params.limit])
+
+
+@tool(namespace="metrics")
+def metrics_resource_saturation(params: SaturationInput, store: TelemetryStore) -> SaturationOutput:
+    """Find services whose CPU is saturated (cores in use above a threshold).
+
+    Uses cpu_cores (rate of the cpu-usage counter, reliable here unlike the
+    utilization gauge). Catches a CPU-saturation fault whose request latency may
+    stay normal, so traces/latency tools would miss it. Default threshold 2 cores;
+    baseline app services sit near 0.05.
+    """
+    saturated = []
+    for service in _services_with(store, "cpu_cores"):
+        pre, post = _pre_post(store, service, "cpu_cores", params.onset_second)
+        if post > params.cores_threshold:
+            saturated.append(ServiceCpu(service=service, pre_cores=pre, post_cores=post))
+    saturated.sort(key=lambda c: c.post_cores, reverse=True)
+    return SaturationOutput(saturated=saturated)
+
+
+@tool(namespace="metrics")
+def metrics_error_budget(params: ErrorBudgetInput, store: TelemetryStore) -> ErrorBudgetOutput:
+    """Check a service's error rate against an SLO and report budget burn.
+
+    Returns the observed mean error rate over the window, the SLO, the burn ratio
+    (observed / SLO), and whether it breached. Use it to frame how far a user-facing
+    service is past its acceptable error budget.
+    """
+    rows = store.metric_series(params.service, "request_error_rate")
+    rows = [
+        r for r in rows
+        if (params.start is None or r.time >= params.start) and (params.end is None or r.time <= params.end)
+    ]
+    observed = fmean([r.value for r in rows]) if rows else 0.0
+    slo = params.slo_error_rate
+    burn = observed / slo if slo > 0 else float("inf")
+    return ErrorBudgetOutput(
+        service=params.service,
+        observed_error_rate=observed,
+        slo_error_rate=slo,
+        budget_burn=burn,
+        breached=observed > slo,
+    )
+
+
+@tool(namespace="metrics")
+def metrics_summary_all(params: SummaryAllInput, store: TelemetryStore) -> SummaryAllOutput:
+    """Snapshot every service's error rate, p95 latency, and CPU at once.
+
+    The dashboard view: one call gives the post-onset mean of all three RED/resource
+    signals per service, sorted by error rate. Use it to orient at the start of an
+    investigation before drilling into the worst service.
+    """
+    services = sorted(
+        {s for s, _m, _u in store.list_metric_keys()}
+    )
+    snapshots = []
+    for service in services:
+        _pre_e, err = _pre_post(store, service, "request_error_rate", params.onset_second)
+        _pre_l, lat = _pre_post(store, service, "latency_p95_ms", params.onset_second)
+        _pre_c, cpu = _pre_post(store, service, "cpu_cores", params.onset_second)
+        snapshots.append(ServiceSnapshot(service=service, error_rate=err, latency_p95_ms=lat, cpu_cores=cpu))
+    snapshots.sort(key=lambda s: s.error_rate, reverse=True)
+    return SummaryAllOutput(services=snapshots)

@@ -69,6 +69,40 @@ __all__ = [
     "GatherEvidenceInput",
     "RuleOutInput",
     "RuleOutVerdict",
+    "SlowestInput",
+    "OperationLatency",
+    "SlowestOutput",
+    "ErrorSummaryInput",
+    "ErrorSummaryOutput",
+    "TreeNode",
+    "SpanTreeOutput",
+    "SpanLatency",
+    "LatencyBreakdownOutput",
+    "ComparePrePostInput",
+    "ComparePrePostOutput",
+    "TopMoversInput",
+    "MetricMover",
+    "TopMoversOutput",
+    "SaturationInput",
+    "ServiceCpu",
+    "SaturationOutput",
+    "ErrorBudgetInput",
+    "ErrorBudgetOutput",
+    "SummaryAllInput",
+    "ServiceSnapshot",
+    "SummaryAllOutput",
+    "ErrorClustersInput",
+    "LogCluster",
+    "ErrorClustersOutput",
+    "LevelHistogramInput",
+    "LevelBucket",
+    "LevelHistogramOutput",
+    "FirstErrorInput",
+    "FirstErrorEntry",
+    "FirstErrorOutput",
+    "ChangesRankCulpritInput",
+    "CulpritCandidate",
+    "ChangesRankOutput",
 ]
 
 SpanKind = Literal["server", "client", "internal", "producer", "consumer"]
@@ -434,3 +468,211 @@ class RuleOutInput(BaseModel):
 class RuleOutVerdict(BaseModel):
     ruled_out: bool
     reason: str
+
+
+# ---- traces (depth) -------------------------------------------------------
+
+
+class SlowestInput(BaseModel):
+    start: int | None = Field(default=None, description="only consider spans at/after this second")
+    status: str | None = Field(default=None, description="optionally restrict to OK or ERROR spans")
+    limit: int = Field(default=10, ge=1, le=50)
+
+
+class OperationLatency(BaseModel):
+    service: str
+    operation: str
+    span_kind: str | None = None
+    count: int
+    p95_ms: float
+    max_ms: float
+
+
+class SlowestOutput(BaseModel):
+    operations: list[OperationLatency] = Field(description="operations ranked by p95 latency, slowest first")
+
+
+class ErrorSummaryInput(BaseModel):
+    start: int | None = Field(default=None, description="only count error spans at/after this second")
+
+
+class ErrorSummaryOutput(BaseModel):
+    observations: list[FaultObservation] = Field(
+        description="per (service, server/client) error counts; feed directly to correlate_attribute_fault"
+    )
+
+
+class TreeNode(BaseModel):
+    depth: int = Field(description="nesting level; render with indentation")
+    service: str
+    operation: str
+    span_kind: str | None = None
+    status: str
+    duration_ms: float
+
+
+class SpanTreeOutput(BaseModel):
+    nodes: list[TreeNode] = Field(description="spans in depth-first order; depth gives the call hierarchy")
+    count: int
+
+
+class SpanLatency(BaseModel):
+    service: str
+    operation: str
+    duration_ms: float
+    pct_of_root: float = Field(description="this span's duration as a fraction of the trace's root span")
+
+
+class LatencyBreakdownOutput(BaseModel):
+    spans: list[SpanLatency] = Field(description="spans ranked by duration, slowest first; find the dominant span")
+    root_duration_ms: float
+
+
+class ComparePrePostInput(BaseModel):
+    operation_contains: str = Field(min_length=1, description="substring of the operation to compare, e.g. 'Charge'")
+    onset_second: int = Field(ge=0)
+
+
+class ComparePrePostOutput(BaseModel):
+    healthy_trace_id: str | None = Field(default=None, description="an OK trace before onset, open with traces_get_trace")
+    failing_trace_id: str | None = Field(default=None, description="an ERROR trace at/after onset")
+    note: str | None = None
+
+
+# ---- metrics (depth) ------------------------------------------------------
+
+
+class TopMoversInput(BaseModel):
+    metric: str = Field(description="request_error_rate, latency_p95_ms, or cpu_cores")
+    onset_second: int = Field(ge=0, description="split point for the pre/post means")
+    limit: int = Field(default=10, ge=1, le=30)
+
+
+class MetricMover(BaseModel):
+    service: str
+    pre_mean: float
+    post_mean: float
+    delta: float
+
+
+class TopMoversOutput(BaseModel):
+    metric: str
+    movers: list[MetricMover] = Field(description="services ranked by post-minus-pre change, largest increase first")
+
+
+class SaturationInput(BaseModel):
+    onset_second: int = Field(default=0, ge=0, description="mean CPU is taken at/after this second")
+    cores_threshold: float = Field(default=2.0, ge=0.0, description="flag services above this many CPU cores")
+
+
+class ServiceCpu(BaseModel):
+    service: str
+    pre_cores: float
+    post_cores: float
+
+
+class SaturationOutput(BaseModel):
+    saturated: list[ServiceCpu] = Field(description="services whose post-onset CPU exceeds the threshold, busiest first")
+
+
+class ErrorBudgetInput(BaseModel):
+    service: str = Field(min_length=1)
+    slo_error_rate: float = Field(default=0.01, ge=0.0, le=1.0, description="the acceptable error-rate SLO")
+    start: int | None = None
+    end: int | None = None
+
+
+class ErrorBudgetOutput(BaseModel):
+    service: str
+    observed_error_rate: float
+    slo_error_rate: float
+    budget_burn: float = Field(description="observed / slo; >1 means the budget is exhausted")
+    breached: bool
+
+
+class SummaryAllInput(BaseModel):
+    onset_second: int = Field(default=0, ge=0, description="means are taken at/after this second")
+
+
+class ServiceSnapshot(BaseModel):
+    service: str
+    error_rate: float
+    latency_p95_ms: float
+    cpu_cores: float
+
+
+class SummaryAllOutput(BaseModel):
+    services: list[ServiceSnapshot] = Field(description="per-service error/latency/cpu snapshot, highest error rate first")
+
+
+# ---- logs (depth) ---------------------------------------------------------
+
+
+class ErrorClustersInput(BaseModel):
+    service: str | None = Field(default=None, description="restrict to one service")
+    start: int | None = Field(default=None, description="only cluster error logs at/after this second")
+    limit: int = Field(default=10, ge=1, le=30)
+
+
+class LogCluster(BaseModel):
+    template: str = Field(description="the error message with numbers/ids normalized to '#'")
+    count: int
+    example: str
+    services: list[str]
+
+
+class ErrorClustersOutput(BaseModel):
+    clusters: list[LogCluster] = Field(description="error-log templates by frequency; the dominant failure modes")
+
+
+class LevelHistogramInput(BaseModel):
+    service: str | None = None
+    bucket_seconds: int = Field(default=60, ge=5, le=600, description="time bucket width")
+
+
+class LevelBucket(BaseModel):
+    start: int
+    counts: dict[str, int] = Field(description="log count per severity level in this bucket")
+
+
+class LevelHistogramOutput(BaseModel):
+    buckets: list[LevelBucket] = Field(description="log-level counts over time; spot when errors surge")
+
+
+class FirstErrorInput(BaseModel):
+    severity_min: str = Field(default="error", description="lowest severity to consider, e.g. 'error'")
+
+
+class FirstErrorEntry(BaseModel):
+    service: str
+    time: int
+    severity: str
+    message: str
+
+
+class FirstErrorOutput(BaseModel):
+    first: list[FirstErrorEntry] = Field(description="each service's earliest error-level log, earliest first")
+
+
+# ---- changes (depth) ------------------------------------------------------
+
+
+class ChangesRankCulpritInput(BaseModel):
+    onset_second: int = Field(ge=0, description="trace-based onset; changes at/after are excluded as non-causal")
+    suspected_service: str | None = Field(
+        default=None, description="the implicated service from attribution; its changes are scored highest"
+    )
+
+
+class CulpritCandidate(BaseModel):
+    change_id: str
+    service: str
+    time: int
+    score: float
+    reason: str
+
+
+class ChangesRankOutput(BaseModel):
+    ranked: list[CulpritCandidate] = Field(
+        description="changes before onset, scored by service match then proximity; inspect content to disambiguate ties"
+    )

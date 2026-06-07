@@ -8,7 +8,10 @@ from sentinel.registry import tool
 from sentinel.tools.models import (
     ChangesLookbackInput,
     ChangesOutput,
+    ChangesRankCulpritInput,
+    ChangesRankOutput,
     ChangesSearchInput,
+    CulpritCandidate,
 )
 from sentinel.tools.store import TelemetryStore
 
@@ -41,3 +44,34 @@ def changes_lookback(params: ChangesLookbackInput, store: TelemetryStore) -> Cha
     ]
     candidates.sort(key=lambda c: c.time, reverse=True)
     return ChangesOutput(changes=candidates)
+
+
+@tool(namespace="changes")
+def changes_rank_culprit(params: ChangesRankCulpritInput, store: TelemetryStore) -> ChangesRankOutput:
+    """Rank changes before onset by likelihood of being the culprit.
+
+    Excludes changes at or after onset (a cause must precede its symptom), then
+    scores each by service match (changes on the implicated `suspected_service`
+    rank far above others) and then proximity to onset. Pass the service from
+    attribution. Ties on the same service are expected: a same-service decoy can
+    sit nearer to onset than the real culprit, so inspect the top candidates'
+    summary/diff_touches (via changes_search) to disambiguate by content.
+    """
+    candidates = [c for c in store.list_changes() if c.time < params.onset_second]
+    if not candidates:
+        return ChangesRankOutput(ranked=[])
+    span = max((params.onset_second - c.time) for c in candidates) or 1
+    ranked = []
+    for c in candidates:
+        service_match = params.suspected_service is not None and c.service == params.suspected_service
+        proximity = 1.0 - ((params.onset_second - c.time) / span)
+        score = (10.0 if service_match else 1.0) + proximity
+        reason = (
+            (f"on suspected service {c.service}; " if service_match else "")
+            + f"{params.onset_second - c.time}s before onset"
+        )
+        ranked.append(
+            CulpritCandidate(change_id=c.id, service=c.service, time=c.time, score=round(score, 3), reason=reason)
+        )
+    ranked.sort(key=lambda x: x.score, reverse=True)
+    return ChangesRankOutput(ranked=ranked)

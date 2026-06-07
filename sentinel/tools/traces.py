@@ -10,24 +10,43 @@ client spans naming the callee pollute it.
 
 from __future__ import annotations
 
-from collections import Counter
+from collections import Counter, defaultdict
 
 from sentinel.fixtures.schemas import Topology, TopologyEdge
 from sentinel.fixtures.schemas import TraceRow
 from sentinel.registry import tool
 from sentinel.tools.models import (
+    ComparePrePostInput,
+    ComparePrePostOutput,
+    ErrorSummaryInput,
+    ErrorSummaryOutput,
+    FaultObservation,
     GetTraceInput,
     GetTraceOutput,
+    LatencyBreakdownOutput,
     NoArgs,
     Onset,
+    OperationLatency,
     Origin,
+    SlowestInput,
+    SlowestOutput,
+    SpanLatency,
     SpanSummary,
+    SpanTreeOutput,
     TracesFindInput,
     TracesFindOutput,
+    TreeNode,
 )
 from sentinel.tools.store import TelemetryStore, span_kind
 
 _ERROR = "ERROR"
+
+
+def _p95(values: list[float]) -> float:
+    if not values:
+        return 0.0
+    ordered = sorted(values)
+    return ordered[min(len(ordered) - 1, int(0.95 * len(ordered)))]
 
 
 def _is_error(row: TraceRow) -> bool:
@@ -211,3 +230,132 @@ def traces_get_trace(params: GetTraceInput, store: TelemetryStore) -> GetTraceOu
     spans = store.get_trace(params.trace_id)
     summaries = [_summary(r, store) for r in spans]
     return GetTraceOutput(spans=summaries, count=len(summaries))
+
+
+@tool(namespace="traces")
+def traces_slowest_operations(params: SlowestInput, store: TelemetryStore) -> SlowestOutput:
+    """Rank operations by p95 latency to find the latency hotspot.
+
+    Groups spans by (service, operation, kind) and returns the slowest by p95 with
+    counts. Scope with start (>= onset) to focus post-onset, and status to compare
+    error vs ok latency. Use it to locate a slow service (a GC pause, a slow
+    dependency) the way traces_error_origin locates a failing one.
+    """
+    spans = store.find_spans(status=params.status, start=params.start)
+    groups: dict[tuple[str, str, str | None], list[float]] = defaultdict(list)
+    for span in spans:
+        groups[(span.service, span.operation, span_kind(span))].append(span.duration_ms)
+    operations = [
+        OperationLatency(
+            service=svc, operation=op, span_kind=kind, count=len(durs), p95_ms=_p95(durs), max_ms=max(durs)
+        )
+        for (svc, op, kind), durs in groups.items()
+    ]
+    operations.sort(key=lambda o: o.p95_ms, reverse=True)
+    return SlowestOutput(operations=operations[: params.limit])
+
+
+@tool(namespace="traces")
+def traces_error_summary(params: ErrorSummaryInput, store: TelemetryStore) -> ErrorSummaryOutput:
+    """Summarize error spans per (service, server/client) as fault observations.
+
+    Returns one observation per erroring service-and-kind (client observations name
+    the callee), ranked by count. This is the structured input correlate_attribute_fault
+    consumes to decide node vs edge, so chain the two: error_summary -> attribute_fault.
+    """
+    counts: dict[tuple[str, str, str | None], int] = defaultdict(int)
+    for span in store.find_spans(status=_ERROR, start=params.start):
+        kind = span_kind(span)
+        if kind == "server":
+            counts[(span.service, "server", None)] += 1
+        elif kind == "client":
+            counts[(span.service, "client", store.callee_of(span))] += 1
+    observations = [
+        FaultObservation(service=svc, role=role, error_count=n, callee=callee)  # type: ignore[arg-type]
+        for (svc, role, callee), n in counts.items()
+    ]
+    observations.sort(key=lambda o: o.error_count, reverse=True)
+    return ErrorSummaryOutput(observations=observations)
+
+
+@tool(namespace="traces")
+def traces_span_tree(params: GetTraceInput, store: TelemetryStore) -> SpanTreeOutput:
+    """Render one trace as a depth-first call tree (depth = nesting level).
+
+    Unlike traces_get_trace (a flat list), this shows the caller -> callee hierarchy
+    so you can see where in the call tree the error or slowdown sits. Use a trace_id
+    from traces_find / traces_error_origin / correlate_metric_to_traces.
+    """
+    spans = store.get_trace(params.trace_id)
+    ids = {s.span_id for s in spans}
+    children: dict[str, list[TraceRow]] = defaultdict(list)
+    for span in spans:
+        if span.parent_span_id in ids:
+            children[span.parent_span_id].append(span)
+    roots = [s for s in spans if not s.parent_span_id or s.parent_span_id not in ids]
+    nodes: list[TreeNode] = []
+
+    def walk(span: TraceRow, depth: int) -> None:
+        nodes.append(
+            TreeNode(
+                depth=depth, service=span.service, operation=span.operation,
+                span_kind=span_kind(span), status=span.status, duration_ms=span.duration_ms,
+            )
+        )
+        for child in sorted(children.get(span.span_id, []), key=lambda x: (x.time, x.span_id)):
+            walk(child, depth + 1)
+
+    for root in sorted(roots, key=lambda x: (x.time, x.span_id)):
+        walk(root, 0)
+    return SpanTreeOutput(nodes=nodes, count=len(nodes))
+
+
+@tool(namespace="traces")
+def traces_latency_breakdown(params: GetTraceInput, store: TelemetryStore) -> LatencyBreakdownOutput:
+    """Rank a trace's spans by duration to find which one dominates its latency.
+
+    Returns spans slowest first with each one's share of the root span's duration,
+    so on a slow request you can see whether the time is spent in the service itself
+    or in a downstream call.
+    """
+    spans = store.get_trace(params.trace_id)
+    if not spans:
+        return LatencyBreakdownOutput(spans=[], root_duration_ms=0.0)
+    ids = {s.span_id for s in spans}
+    roots = [s for s in spans if not s.parent_span_id or s.parent_span_id not in ids]
+    root_dur = max((r.duration_ms for r in roots), default=max(s.duration_ms for s in spans))
+    ranked = sorted(spans, key=lambda s: s.duration_ms, reverse=True)
+    return LatencyBreakdownOutput(
+        spans=[
+            SpanLatency(
+                service=s.service, operation=s.operation, duration_ms=s.duration_ms,
+                pct_of_root=(s.duration_ms / root_dur if root_dur else 0.0),
+            )
+            for s in ranked
+        ],
+        root_duration_ms=root_dur,
+    )
+
+
+@tool(namespace="traces")
+def traces_compare_pre_post(params: ComparePrePostInput, store: TelemetryStore) -> ComparePrePostOutput:
+    """Find a healthy pre-onset trace and a failing post-onset trace of the same operation.
+
+    Returns one OK trace_id from before onset and one ERROR trace_id from at/after
+    onset for operations matching the substring (e.g. 'Charge', 'PlaceOrder'). Open
+    both with traces_span_tree to see exactly what the fault changed in the call path.
+    """
+    healthy = store.find_spans(
+        operation_contains=params.operation_contains, status="OK", end=params.onset_second - 1
+    )
+    failing = store.find_spans(
+        operation_contains=params.operation_contains, status=_ERROR, start=params.onset_second
+    )
+    h = healthy[0].trace_id if healthy else None
+    f = failing[0].trace_id if failing else None
+    note = None
+    if h is None:
+        note = "no healthy pre-onset trace for that operation"
+    elif f is None:
+        note = "no failing post-onset trace for that operation"
+    return ComparePrePostOutput(healthy_trace_id=h, failing_trace_id=f, note=note)

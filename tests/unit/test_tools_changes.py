@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from sentinel.tools import changes
-from sentinel.tools.models import ChangesLookbackInput, ChangesSearchInput
+from sentinel.tools.models import ChangesLookbackInput, ChangesRankCulpritInput, ChangesSearchInput
 from sentinel.tools.store import FixtureStore
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -42,3 +42,13 @@ def test_lookback_service_filter() -> None:
     )
     # Both payment changes before onset: culprit chg_0003 (@300) and decoy chg_0004 (@350).
     assert {c.id for c in out.changes} == {"chg_0003", "chg_0004"}
+
+
+def test_rank_culprit_prefers_change_on_suspected_service() -> None:
+    out = changes.changes_rank_culprit(
+        ChangesRankCulpritInput(onset_second=330, suspected_service="payment"), FAILURE
+    )
+    assert out.ranked
+    # chg_0003 (payment, @300) is the only payment change before onset 330 and ranks top.
+    assert out.ranked[0].change_id == "chg_0003"
+    assert out.ranked[0].service == "payment"
