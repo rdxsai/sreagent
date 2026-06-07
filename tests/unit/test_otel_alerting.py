@@ -228,3 +228,58 @@ def test_dump_prometheus_rules_is_yaml():
     from labs.otel.alerting.prometheus_rules import dump_prometheus_rules
     parsed = yaml.safe_load(dump_prometheus_rules(load_rules()))
     assert parsed["groups"][0]["name"] == "sentinel_symptom_alerts"
+
+
+# ---------------------------------------------------------------------------
+# Alertmanager webhook mapper tests (Task B2)
+# ---------------------------------------------------------------------------
+
+
+def test_webhook_maps_firing_alerts_with_relative_onset():
+    from labs.otel.alerting.webhook import alertmanager_payload_to_alerts
+    payload = {"status": "firing", "alerts": [
+        {"status": "firing",
+         "labels": {"alertname": "CheckoutFailureRate", "severity": "critical", "tier": "user_facing", "signal": "checkout_error_rate"},
+         "annotations": {"summary": "Checkout failure rate 0.5 onset", "value": "0.5"},
+         "startsAt": "2026-06-06T21:05:00Z"},
+        {"status": "firing",
+         "labels": {"alertname": "FrontendHighLatency", "severity": "warning", "tier": "user_facing", "signal": "latency_p95"},
+         "annotations": {"summary": "p95 high"},
+         "startsAt": "2026-06-06T21:04:00Z"},
+    ]}
+    alerts = alertmanager_payload_to_alerts(payload)
+    assert len(alerts) == 2
+    by = {a.alertname: a for a in alerts}
+    assert by["CheckoutFailureRate"].starts_at_second == 60   # 21:05 - earliest(21:04)
+    assert by["FrontendHighLatency"].starts_at_second == 0
+    assert by["CheckoutFailureRate"].value == 0.5
+    assert all(a.labels.get("tier") == "user_facing" for a in alerts)
+    assert by["CheckoutFailureRate"].fingerprint  # non-empty
+
+
+def test_webhook_skips_resolved_alerts():
+    from labs.otel.alerting.webhook import alertmanager_payload_to_alerts
+    payload = {"alerts": [
+        {"status": "resolved", "labels": {"alertname": "CheckoutFailureRate", "severity": "critical", "tier": "user_facing", "signal": "checkout_error_rate"}, "annotations": {}, "startsAt": "2026-06-06T21:05:00Z"},
+    ]}
+    assert alertmanager_payload_to_alerts(payload) == []
+
+
+def test_webhook_rejects_non_allowlisted_alert():
+    import pytest
+    from labs.otel.alerting.allowlist import AllowlistError
+    from labs.otel.alerting.webhook import alertmanager_payload_to_alerts
+    payload = {"alerts": [
+        {"status": "firing", "labels": {"alertname": "PaymentChargeFailure", "severity": "critical", "tier": "user_facing", "signal": "checkout_error_rate"}, "annotations": {}, "startsAt": "2026-06-06T21:05:00Z"},
+    ]}
+    with pytest.raises(AllowlistError):
+        alertmanager_payload_to_alerts(payload)
+
+
+def test_webhook_parses_nanosecond_z_timestamps():
+    from labs.otel.alerting.webhook import alertmanager_payload_to_alerts
+    payload = {"alerts": [
+        {"status": "firing", "labels": {"alertname": "CheckoutFailureRate", "severity": "critical", "tier": "user_facing", "signal": "checkout_error_rate"}, "annotations": {"value": "0.3"}, "startsAt": "2026-06-06T21:05:00.843219842Z"},
+    ]}
+    alerts = alertmanager_payload_to_alerts(payload)
+    assert len(alerts) == 1 and alerts[0].starts_at_second == 0

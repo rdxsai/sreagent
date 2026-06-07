@@ -25,6 +25,7 @@ from labs.otel.alerting.prometheus_rules import (
     compile_prometheus_rules,
     dump_prometheus_rules,
 )
+from labs.otel.alerting.webhook import alertmanager_payload_to_alerts
 
 __all__ = [
     "ALLOWED_ALERTNAMES",
@@ -45,4 +46,5 @@ __all__ = [
     "write_coverage_matrix",
     "compile_prometheus_rules",
     "dump_prometheus_rules",
+    "alertmanager_payload_to_alerts",
 ]
