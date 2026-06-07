@@ -196,3 +196,35 @@ def test_validate_alerts_flags_empty():
     errors = []
     _validate_alerts([], window_end=900, errors=errors)
     assert errors and "no alerts" in errors[0]
+
+
+# ---------------------------------------------------------------------------
+# Prometheus rule compilation tests (Task B1)
+# ---------------------------------------------------------------------------
+
+
+def test_compile_prometheus_rules_shape():
+    from labs.otel.alerting import load_rules
+    from labs.otel.alerting.prometheus_rules import compile_prometheus_rules
+    rules = load_rules()
+    doc = compile_prometheus_rules(rules)
+    out_rules = doc["groups"][0]["rules"]
+    assert len(out_rules) == len(rules)
+    by_name = {r["alert"]: r for r in out_rules}
+    cfr = by_name["CheckoutFailureRate"]
+    assert cfr["for"] == "60s"
+    assert cfr["labels"]["severity"] == "critical"
+    assert cfr["labels"]["tier"] == "user_facing"
+    assert cfr["expr"].endswith("> 0.1")  # comparison + threshold appended
+    assert cfr["expr"].startswith("(")    # original expr wrapped
+    # annotation value token translated to Prometheus syntax, offline token gone
+    assert "{{ $value }}" in cfr["annotations"]["summary"]
+    assert "{{value}}" not in cfr["annotations"]["summary"]
+
+
+def test_dump_prometheus_rules_is_yaml():
+    import yaml
+    from labs.otel.alerting import load_rules
+    from labs.otel.alerting.prometheus_rules import dump_prometheus_rules
+    parsed = yaml.safe_load(dump_prometheus_rules(load_rules()))
+    assert parsed["groups"][0]["name"] == "sentinel_symptom_alerts"

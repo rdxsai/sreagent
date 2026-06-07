@@ -21,6 +21,10 @@ from labs.otel.alerting.coverage import (
     build_coverage_matrix,
     write_coverage_matrix,
 )
+from labs.otel.alerting.prometheus_rules import (
+    compile_prometheus_rules,
+    dump_prometheus_rules,
+)
 
 __all__ = [
     "ALLOWED_ALERTNAMES",
@@ -39,4 +43,6 @@ __all__ = [
     "assert_coverage_invariants",
     "build_coverage_matrix",
     "write_coverage_matrix",
+    "compile_prometheus_rules",
+    "dump_prometheus_rules",
 ]
