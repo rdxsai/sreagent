@@ -1,4 +1,50 @@
+import pytest
 from sentinel.fixtures.schemas import DerivedAlert
+from labs.otel.alerting.allowlist import (
+    AllowlistError, assert_alert_is_symptom_level, assert_rule_templates_safe,
+)
+
+
+def _alert(**overrides):
+    base = dict(
+        alertname="CheckoutFailureRate", severity="critical", starts_at_second=312,
+        labels={"tier": "user_facing", "signal": "checkout_error_rate"}, annotations={},
+        value=0.25, expr="sum(...)", fingerprint="abc123",
+    )
+    base.update(overrides)
+    return DerivedAlert(**base)
+
+
+def test_allowlist_accepts_symptom_level_alert():
+    assert_alert_is_symptom_level(_alert())  # no raise
+
+
+def test_allowlist_rejects_unknown_alertname():
+    with pytest.raises(AllowlistError):
+        assert_alert_is_symptom_level(_alert(alertname="PaymentChargeFailure"))
+
+
+def test_allowlist_rejects_unknown_label_value():
+    with pytest.raises(AllowlistError):
+        assert_alert_is_symptom_level(_alert(labels={"tier": "user_facing", "signal": "payment_errors"}))
+
+
+def test_allowlist_rejects_unknown_label_key():
+    with pytest.raises(AllowlistError):
+        assert_alert_is_symptom_level(_alert(labels={"culprit": "payment"}))
+
+
+def test_rule_templates_safe_rejects_label_interpolation():
+    class FakeRule:
+        annotation_templates = {"summary": "down because {{ $labels.service }}"}
+    with pytest.raises(AllowlistError):
+        assert_rule_templates_safe(FakeRule())
+
+
+def test_rule_templates_safe_accepts_value_only_template():
+    class FakeRule:
+        annotation_templates = {"summary": "rate {{value}} since {{starts_at}}"}
+    assert_rule_templates_safe(FakeRule())  # no raise
 
 
 def test_derived_alert_rejects_unknown_field():
