@@ -17,7 +17,7 @@ rules:
     expr: >-
       max(sum by (service_name) (rate(traces_span_metrics_calls_total{service_name=~"frontend|checkout",status_code="STATUS_CODE_ERROR"}[3m]))
       / sum by (service_name) (rate(traces_span_metrics_calls_total{service_name=~"frontend|checkout"}[3m])))
-    threshold: 0.05
+    threshold: 0.04
     comparison: ">"
     for_seconds: 60
     severity: critical

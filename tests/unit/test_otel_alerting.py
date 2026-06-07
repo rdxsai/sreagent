@@ -250,7 +250,7 @@ def test_compile_prometheus_rules_shape():
     assert r0["labels"]["severity"] == "critical"
     assert r0["labels"]["tier"] == "user_facing"
     assert r0["expr"].startswith("(")  # original expr wrapped
-    assert any(tail in r0["expr"] for tail in ("> 0.05", "> 120"))  # comparison + threshold appended
+    assert any(tail in r0["expr"] for tail in ("> 0.04", "> 120"))  # comparison + threshold appended
     # offline onset token translated; no leftover offline tokens
     assert "{{starts_at}}" not in r0["annotations"]["summary"]
     assert "{{value}}" not in r0["annotations"]["summary"]
