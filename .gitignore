@@ -71,3 +71,6 @@ Thumbs.db
 # Benchmark fixture safety
 /fixtures/**/raw/
 /fixtures/**/eval_only/
+
+# Tool-eval run artifacts
+/sentinel_tool_eval/results/
