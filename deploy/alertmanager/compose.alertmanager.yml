@@ -1,0 +1,14 @@
+# Demo-only overlay: runs Alertmanager next to the OpenTelemetry demo so the same
+# symptom rules can fire live and POST to the Sentinel /alert receiver.
+# NOT used by the eval harness (Alertmanager timing is non-deterministic).
+services:
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: sentinel-alertmanager
+    command: ["--config.file=/etc/alertmanager/alertmanager.yml"]
+    volumes:
+      - ./alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    ports:
+      - "9093:9093"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

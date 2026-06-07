@@ -1,0 +1,11 @@
+route:
+  receiver: sentinel-agent
+  group_by: ['alertname']
+  group_wait: 10s
+  group_interval: 30s
+  repeat_interval: 1h
+receivers:
+  - name: sentinel-agent
+    webhook_configs:
+      - url: http://host.docker.internal:8000/alert
+        send_resolved: false
