@@ -10,6 +10,11 @@ from labs.otel.alerting.allowlist import (
     assert_rule_templates_safe,
 )
 from labs.otel.alerting.schema import AlertRule, load_rules
+from labs.otel.alerting.evaluator import (
+    derive_alerts,
+    NoAlertFired,
+    PrometheusRangeClient,
+)
 
 __all__ = [
     "ALLOWED_ALERTNAMES",
@@ -21,4 +26,7 @@ __all__ = [
     "assert_rule_templates_safe",
     "AlertRule",
     "load_rules",
+    "derive_alerts",
+    "NoAlertFired",
+    "PrometheusRangeClient",
 ]
