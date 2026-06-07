@@ -15,6 +15,8 @@ from sentinel.tools.models import (
     Attribution,
     MetricToTracesInput,
     MetricToTracesOutput,
+    NoArgs,
+    OnsetConsensus,
     SignalAlignment,
     SignalShift,
     SignalsInput,
@@ -143,5 +145,38 @@ def correlate_metric_to_traces(params: MetricToTracesInput, store: TelemetryStor
         service=params.service,
         exemplar_trace_ids=seen,
         sample=sample,
+        note=note,
+    )
+
+
+@tool(namespace="correlate")
+def correlate_onset_consensus(params: NoArgs, store: TelemetryStore) -> OnsetConsensus:
+    """Corroborate the incident onset across traces and logs.
+
+    Compares the first error span time with the earliest error-level log time. When
+    they agree (within a minute) the onset is solid; when they disagree the logs are
+    likely dominated by background noise (load-generator timeouts that error from
+    the start), so the trace onset is preferred. Anchor change correlation on the
+    consensus onset this returns.
+    """
+    errors = [s for s in store.all_spans() if s.status.upper() == "ERROR"]
+    trace_onset = min((s.time for s in errors), default=None)
+    error_logs = store.search_logs(severity_min="error")
+    log_onset = min((r.time for r in error_logs), default=None)
+    agreement = trace_onset is not None and log_onset is not None and abs(trace_onset - log_onset) <= 60
+    if agreement:
+        consensus = min(trace_onset, log_onset)  # type: ignore[type-var]
+        note = None
+    elif trace_onset is not None:
+        consensus = trace_onset
+        note = "trace and log onsets differ by more than a minute; logs are likely noisy, using the trace onset"
+    else:
+        consensus = log_onset
+        note = "no error spans; falling back to the log onset"
+    return OnsetConsensus(
+        trace_onset_second=trace_onset,
+        first_error_log_second=log_onset,
+        consensus_onset_second=consensus,
+        agreement=agreement,
         note=note,
     )

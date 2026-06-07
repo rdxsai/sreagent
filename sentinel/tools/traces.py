@@ -28,6 +28,8 @@ from sentinel.tools.models import (
     Onset,
     OperationLatency,
     Origin,
+    ServiceInput,
+    ServiceTraceSummary,
     SlowestInput,
     SlowestOutput,
     SpanLatency,
@@ -359,3 +361,26 @@ def traces_compare_pre_post(params: ComparePrePostInput, store: TelemetryStore) 
     elif f is None:
         note = "no failing post-onset trace for that operation"
     return ComparePrePostOutput(healthy_trace_id=h, failing_trace_id=f, note=note)
+
+
+@tool(namespace="traces")
+def traces_service_summary(params: ServiceInput, store: TelemetryStore) -> ServiceTraceSummary:
+    """Summarize one service's traffic from the spans: count, errors, error rate, p95.
+
+    A trace-derived RED view (the metrics tools give the metric-derived one). The
+    server_error_spans count is the own-fault signal: a service with server errors
+    failed its own work, versus one whose errors are only client spans to a failing
+    dependency.
+    """
+    spans = [s for s in store.all_spans() if s.service == params.service]
+    total = len(spans)
+    errors = [s for s in spans if s.status.upper() == _ERROR]
+    server_errors = [s for s in errors if span_kind(s) == "server"]
+    return ServiceTraceSummary(
+        service=params.service,
+        total_spans=total,
+        error_spans=len(errors),
+        error_rate=(len(errors) / total if total else 0.0),
+        p95_ms=_p95([s.duration_ms for s in spans]),
+        server_error_spans=len(server_errors),
+    )

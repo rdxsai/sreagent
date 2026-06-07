@@ -103,6 +103,11 @@ __all__ = [
     "ChangesRankCulpritInput",
     "CulpritCandidate",
     "ChangesRankOutput",
+    "BuildEvidenceInput",
+    "EvidenceBundle",
+    "ReportCheck",
+    "ServiceTraceSummary",
+    "OnsetConsensus",
 ]
 
 SpanKind = Literal["server", "client", "internal", "producer", "consumer"]
@@ -676,3 +681,42 @@ class ChangesRankOutput(BaseModel):
     ranked: list[CulpritCandidate] = Field(
         description="changes before onset, scored by service match then proximity; inspect content to disambiguate ties"
     )
+
+
+# ---- report (depth) -------------------------------------------------------
+
+
+class BuildEvidenceInput(BaseModel):
+    onset_second: int = Field(ge=0)
+    suspected_service: str = Field(min_length=1, description="the implicated service or caller")
+    culprit_change_id: str | None = Field(default=None, description="the change you believe is the culprit")
+
+
+class EvidenceBundle(BaseModel):
+    evidence: list[str] = Field(description="ready-to-attach evidence lines for the report")
+    timeline: list[TimelineEntry] = Field(description="changes and onset ordered in time")
+
+
+class ReportCheck(BaseModel):
+    ok: bool
+    issues: list[str] = Field(default_factory=list, description="what to fix before submitting; empty when ready")
+
+
+# ---- traces / correlate (extra) -------------------------------------------
+
+
+class ServiceTraceSummary(BaseModel):
+    service: str
+    total_spans: int
+    error_spans: int
+    error_rate: float
+    p95_ms: float
+    server_error_spans: int = Field(description="error spans the service itself emitted as a server (own-fault signal)")
+
+
+class OnsetConsensus(BaseModel):
+    trace_onset_second: int | None = Field(default=None, description="first error span time")
+    first_error_log_second: int | None = Field(default=None, description="earliest error-level log time")
+    consensus_onset_second: int | None = Field(default=None, description="the earliest corroborated onset to anchor on")
+    agreement: bool = Field(description="true if the trace and log onsets are within one minute")
+    note: str | None = None
