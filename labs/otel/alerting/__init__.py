@@ -15,6 +15,12 @@ from labs.otel.alerting.evaluator import (
     NoAlertFired,
     PrometheusRangeClient,
 )
+from labs.otel.alerting.coverage import (
+    CoverageError,
+    assert_coverage_invariants,
+    build_coverage_matrix,
+    write_coverage_matrix,
+)
 
 __all__ = [
     "ALLOWED_ALERTNAMES",
@@ -29,4 +35,8 @@ __all__ = [
     "derive_alerts",
     "NoAlertFired",
     "PrometheusRangeClient",
+    "CoverageError",
+    "assert_coverage_invariants",
+    "build_coverage_matrix",
+    "write_coverage_matrix",
 ]
