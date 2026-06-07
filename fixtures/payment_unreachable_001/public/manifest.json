@@ -1,0 +1,37 @@
+{
+  "alerts": [
+    {
+      "alertname": "CheckoutFailureRate",
+      "annotations": {
+        "summary": "Checkout failure rate 0.21428571428571427 since second 450"
+      },
+      "expr": "sum(rate(traces_span_metrics_calls_total{service_name=\"checkout\",status_code=\"STATUS_CODE_ERROR\"}[3m])) / sum(rate(traces_span_metrics_calls_total{service_name=\"checkout\"}[3m]))",
+      "fingerprint": "45eff36c1b207c68",
+      "labels": {
+        "signal": "checkout_error_rate",
+        "tier": "user_facing"
+      },
+      "severity": "critical",
+      "starts_at_second": 450,
+      "value": 0.21428571428571427
+    }
+  ],
+  "available_signals": [
+    "metrics",
+    "logs",
+    "traces",
+    "changes"
+  ],
+  "notes": [
+    "Recorded from OpenTelemetry Demo pinned commit b6f5c1ac7328fa57f2681e9c74574f1698847abb.",
+    "Feature flag names and private injection metadata are intentionally redacted."
+  ],
+  "scenario_id": "payment_unreachable_001",
+  "source": "opentelemetry-demo",
+  "symptom": "Checkout failures increased during the recording window.",
+  "time_unit": "second",
+  "window": {
+    "end": 900,
+    "start": 0
+  }
+}

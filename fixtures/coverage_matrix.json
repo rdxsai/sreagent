@@ -2,5 +2,8 @@
   "payment_failure_001": [
     "CheckoutFailureRate",
     "CheckoutHighLatency"
+  ],
+  "payment_unreachable_001": [
+    "CheckoutFailureRate"
   ]
 }

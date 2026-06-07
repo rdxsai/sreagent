@@ -1,0 +1,3 @@
+{"diff_touches":["copy","layout_assets"],"id":"chg_0001","kind":"deploy","service":"frontend","summary":"frontend copy and layout assets changed","time":270}
+{"diff_touches":["scoring"],"id":"chg_0002","kind":"runtime_config_change","service":"recommendation","summary":"recommendation scoring parameter changed","time":285}
+{"diff_touches":["payment_client","service_discovery"],"id":"chg_0003","kind":"runtime_config_change","service":"checkout","summary":"payment dependency routing configuration changed","time":300}
