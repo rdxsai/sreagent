@@ -12,7 +12,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from sentinel.fixtures.schemas import ChangeEvent, RootCause, Topology
+from sentinel.fixtures.schemas import ChangeEvent, RootCause, Topology, TopologyEdge
 
 __all__ = [
     "NoArgs",
@@ -52,6 +52,23 @@ __all__ = [
     "ChangeEvent",
     "RootCause",
     "Topology",
+    "TopologyEdge",
+    "ServiceInput",
+    "Dependencies",
+    "BlastRadius",
+    "CriticalPathInput",
+    "CriticalPath",
+    "OriginPathOutput",
+    "OnsetWindowInput",
+    "TopologyDelta",
+    "SignalsInput",
+    "SignalShift",
+    "SignalAlignment",
+    "MetricToTracesInput",
+    "MetricToTracesOutput",
+    "GatherEvidenceInput",
+    "RuleOutInput",
+    "RuleOutVerdict",
 ]
 
 SpanKind = Literal["server", "client", "internal", "producer", "consumer"]
@@ -315,3 +332,105 @@ class RootCauseReport(BaseModel):
 
 class ReportAck(BaseModel):
     accepted: bool
+
+
+# ---- topology -------------------------------------------------------------
+
+
+class ServiceInput(BaseModel):
+    service: str = Field(min_length=1, description="the service to inspect, e.g. 'checkout'")
+
+
+class Dependencies(BaseModel):
+    service: str
+    callers: list[str] = Field(description="services that directly call this service (one hop upstream)")
+    callees: list[str] = Field(description="services this service directly calls (one hop downstream)")
+
+
+class BlastRadius(BaseModel):
+    service: str
+    upstream: list[str] = Field(description="services that transitively depend on this one; impacted if it degrades")
+    downstream: list[str] = Field(description="services this one transitively depends on; possible upstream causes")
+
+
+class CriticalPathInput(BaseModel):
+    target: str = Field(min_length=1, description="the service to reach, e.g. 'payment'")
+    source: str = Field(default="frontend", description="the user-facing entry point to start from")
+
+
+class CriticalPath(BaseModel):
+    source: str
+    target: str
+    path: list[str] = Field(description="service call path source -> ... -> target; empty if unreachable")
+    found: bool
+
+
+class OriginPathOutput(BaseModel):
+    classification: Literal["service", "edge", "unknown"]
+    origin_service: str | None = Field(default=None, description="the originating service when classification == service")
+    path: list[str] = Field(default_factory=list, description="error-propagation path of services from entry to terminal")
+    terminal_has_server_error: bool = Field(description="true if the terminal service's own server spans error (service fault, not edge)")
+    evidence: list[str] = Field(default_factory=list)
+
+
+class OnsetWindowInput(BaseModel):
+    onset_second: int = Field(ge=0, description="trace-based onset; edges erroring before this are baseline, after are new")
+
+
+class TopologyDelta(BaseModel):
+    new_error_edges: list[TopologyEdge] = Field(description="caller->callee edges that begin erroring only after onset")
+    note: str | None = None
+
+
+# ---- correlate (cross-signal) ---------------------------------------------
+
+
+class SignalsInput(BaseModel):
+    service: str = Field(min_length=1, description="the service whose signals to align")
+    onset_second: int = Field(ge=0, description="split point: means are taken before vs at/after this")
+
+
+class SignalShift(BaseModel):
+    metric: str
+    pre_mean: float
+    post_mean: float
+    shifted: bool
+
+
+class SignalAlignment(BaseModel):
+    service: str
+    onset_second: int
+    signals: list[SignalShift]
+    shifted_metrics: list[str] = Field(description="metrics that moved after onset (error_rate, latency, cpu)")
+
+
+class MetricToTracesInput(BaseModel):
+    service: str = Field(min_length=1)
+    onset_second: int = Field(ge=0, description="only consider spans at/after this time")
+    status: str = Field(default="ERROR", description="span status to exemplify: ERROR or OK")
+    limit: int = Field(default=5, ge=1, le=20)
+
+
+class MetricToTracesOutput(BaseModel):
+    service: str
+    exemplar_trace_ids: list[str] = Field(description="trace ids to open with traces_get_trace")
+    sample: list[SpanSummary]
+    note: str | None = None
+
+
+# ---- hypothesis -----------------------------------------------------------
+
+
+class GatherEvidenceInput(BaseModel):
+    hypothesis: Hypothesis
+
+
+class RuleOutInput(BaseModel):
+    onset_second: int = Field(ge=0)
+    service: str | None = Field(default=None, description="a suspected service to test for elimination")
+    change_id: str | None = Field(default=None, description="a suspected change id to test for elimination")
+
+
+class RuleOutVerdict(BaseModel):
+    ruled_out: bool
+    reason: str

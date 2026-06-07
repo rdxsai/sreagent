@@ -7,15 +7,26 @@ span-kind rule. `correlate_timeline` orders changes against the onset.
 
 from __future__ import annotations
 
+from statistics import fmean
+
 from sentinel.registry import tool
 from sentinel.tools.models import (
     AttributeFaultInput,
     Attribution,
+    MetricToTracesInput,
+    MetricToTracesOutput,
+    SignalAlignment,
+    SignalShift,
+    SignalsInput,
     TimelineEntry,
     TimelineInput,
     TimelineOutput,
 )
 from sentinel.tools.store import TelemetryStore
+from sentinel.tools.traces import _summary
+
+# Absolute shift thresholds, sized to fault magnitudes not low-baseline noise.
+_SHIFT_THRESHOLDS = {"request_error_rate": 0.02, "latency_p95_ms": 100.0, "cpu_cores": 1.0}
 
 
 @tool(namespace="correlate")
@@ -80,3 +91,57 @@ def correlate_timeline(params: TimelineInput, store: TelemetryStore) -> Timeline
         (c for c in params.changes if c.time < params.onset_second), key=lambda c: c.time
     )
     return TimelineOutput(entries=entries, changes_before_onset=[c.id for c in before])
+
+
+@tool(namespace="correlate")
+def correlate_signals(params: SignalsInput, store: TelemetryStore) -> SignalAlignment:
+    """Align one service's error, latency, and CPU signals before vs after onset.
+
+    Computes each metric's mean pre-onset and post-onset and flags the ones that
+    moved. Use it to confirm in one call what a service's fault looks like in the
+    metrics: errors for a failing dependency, latency for a slow one, CPU cores
+    for a saturated one (e.g. a service whose CPU jumps but latency stays flat).
+    """
+    signals: list[SignalShift] = []
+    for metric, threshold in _SHIFT_THRESHOLDS.items():
+        rows = store.metric_series(params.service, metric)
+        if not rows:
+            continue
+        pre = [r.value for r in rows if r.time < params.onset_second]
+        post = [r.value for r in rows if r.time >= params.onset_second]
+        pre_mean = fmean(pre) if pre else 0.0
+        post_mean = fmean(post) if post else 0.0
+        shifted = abs(post_mean - pre_mean) > threshold
+        signals.append(SignalShift(metric=metric, pre_mean=pre_mean, post_mean=post_mean, shifted=shifted))
+    return SignalAlignment(
+        service=params.service,
+        onset_second=params.onset_second,
+        signals=signals,
+        shifted_metrics=[s.metric for s in signals if s.shifted],
+    )
+
+
+@tool(namespace="correlate")
+def correlate_metric_to_traces(params: MetricToTracesInput, store: TelemetryStore) -> MetricToTracesOutput:
+    """Drill from a service's post-onset metric anomaly down to exemplar traces.
+
+    Returns the trace ids of representative spans for the service at/after onset
+    (erroring by default, or status=OK to contrast a healthy one), so you can open
+    one with traces_get_trace and see the failing call path behind the metric.
+    """
+    spans = store.find_spans(service=params.service, status=params.status, start=params.onset_second)
+    seen: list[str] = []
+    sample = []
+    for span in spans:
+        if span.trace_id not in seen:
+            seen.append(span.trace_id)
+            sample.append(_summary(span, store))
+        if len(seen) >= params.limit:
+            break
+    note = None if seen else f"no {params.status} spans for {params.service} at/after second {params.onset_second}"
+    return MetricToTracesOutput(
+        service=params.service,
+        exemplar_trace_ids=seen,
+        sample=sample,
+        note=note,
+    )

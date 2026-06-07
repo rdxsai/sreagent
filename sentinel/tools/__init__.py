@@ -4,7 +4,16 @@ Importing this package registers every tool into `sentinel.registry.REGISTRY`.
 """
 
 from sentinel.registry import REGISTRY
-from sentinel.tools import changes, correlate, logs, metrics, report, traces
+from sentinel.tools import (
+    changes,
+    correlate,
+    hypothesis,
+    logs,
+    metrics,
+    report,
+    topology,
+    traces,
+)
 from sentinel.tools.store import FixtureStore, TelemetryStore
 
 __all__ = [
@@ -13,8 +22,10 @@ __all__ = [
     "TelemetryStore",
     "changes",
     "correlate",
+    "hypothesis",
     "logs",
     "metrics",
     "report",
+    "topology",
     "traces",
 ]
