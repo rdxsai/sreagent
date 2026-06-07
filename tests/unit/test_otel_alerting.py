@@ -150,3 +150,49 @@ def test_derive_is_deterministic():
     second = [a.model_dump() for a in _derive(rules, fake)]
     assert first == second
     assert first[0]["fingerprint"]  # non-empty stable hash
+
+
+# ---------------------------------------------------------------------------
+# _validate_alerts gate tests (Task A6)
+# ---------------------------------------------------------------------------
+
+from labs.otel.validator import _validate_alerts
+
+
+def _good_alert(**o):
+    base = dict(alertname="CheckoutFailureRate", severity="critical", starts_at_second=312,
+                labels={"tier": "user_facing", "signal": "checkout_error_rate"},
+                annotations={"summary": "rate 0.5 at 312"}, value=0.5, expr="sum(...)", fingerprint="ab12")
+    base.update(o)
+    from sentinel.fixtures.schemas import DerivedAlert
+    return DerivedAlert(**base)
+
+
+def test_validate_alerts_accepts_clean_set():
+    errors = []
+    _validate_alerts([_good_alert()], window_end=900, errors=errors)
+    assert errors == []
+
+
+def test_validate_alerts_flags_non_allowlisted_alertname():
+    errors = []
+    _validate_alerts([_good_alert(alertname="PaymentChargeFailure")], window_end=900, errors=errors)
+    assert errors and "symptom-level" in errors[0]
+
+
+def test_validate_alerts_flags_label_interpolating_annotation():
+    errors = []
+    _validate_alerts([_good_alert(annotations={"summary": "down due to {{ $labels.service }}"})], window_end=900, errors=errors)
+    assert any("forbidden token" in e for e in errors)
+
+
+def test_validate_alerts_flags_onset_outside_window():
+    errors = []
+    _validate_alerts([_good_alert(starts_at_second=950)], window_end=900, errors=errors)
+    assert any("outside window" in e for e in errors)
+
+
+def test_validate_alerts_flags_empty():
+    errors = []
+    _validate_alerts([], window_end=900, errors=errors)
+    assert errors and "no alerts" in errors[0]

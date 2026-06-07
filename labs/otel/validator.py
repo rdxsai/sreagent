@@ -7,9 +7,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
+from labs.otel.alerting.allowlist import (
+    AllowlistError,
+    assert_alert_is_symptom_level,
+    FORBIDDEN_ANNOTATION_SUBSTRINGS,
+)
 from labs.otel.redactor import RedactionError, assert_no_banned_tokens
 from sentinel.fixtures import load_public_fixture
-from sentinel.fixtures.schemas import MetricRow, PrivateTruth, PublicFixture
+from sentinel.fixtures.schemas import DerivedAlert, MetricRow, PrivateTruth, PublicFixture
 
 
 @dataclass(frozen=True)
@@ -57,6 +62,9 @@ def validate_fixture(
     truth_path = scenario_root / "eval_only" / "truth.json"
     errors: list[str] = []
 
+    if not (public_dir / "manifest.json").exists():
+        errors.append("public manifest.json is missing")
+
     try:
         assert_no_banned_tokens(public_dir)
     except RedactionError as exc:
@@ -74,6 +82,7 @@ def validate_fixture(
     _validate_decoys(fixture, truth, errors)
     _validate_replay(public_dir, fixture, errors)
     _validate_signal_quality(fixture, truth, gates, errors)
+    _validate_alerts(fixture.manifest.alerts, fixture.manifest.window.end, errors)
 
     return ValidationReport(fixture.manifest.scenario_id, tuple(errors))
 
@@ -199,6 +208,26 @@ def _validate_signal_quality(
     )
     if not has_log_evidence and not has_trace_evidence:
         errors.append("target service has no post-onset log or trace evidence")
+
+
+def _validate_alerts(alerts: list[DerivedAlert], window_end: int, errors: list[str]) -> None:
+    if not alerts:
+        errors.append("public manifest has no alerts")
+        return
+    for alert in alerts:
+        # Gate A: allow-list (alertname + labels)
+        try:
+            assert_alert_is_symptom_level(alert)
+        except AllowlistError as exc:
+            errors.append(f"alert {alert.alertname} is not symptom-level: {exc}")
+        # Gate B: annotation template safety (no label interpolation / service naming)
+        for text in alert.annotations.values():
+            if any(token in text for token in FORBIDDEN_ANNOTATION_SUBSTRINGS):
+                errors.append(f"alert {alert.alertname} annotation interpolates a forbidden token")
+                break
+        # Gate D: onset within the window
+        if not (0 <= alert.starts_at_second <= window_end):
+            errors.append(f"alert {alert.alertname} starts_at_second outside window")
 
 
 def _target_services(truth: PrivateTruth) -> set[str]:
