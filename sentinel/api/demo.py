@@ -110,10 +110,40 @@ def demo_scenarios() -> dict:
     return {"scenarios": scenarios}
 
 
+def _hydrate_changes(store: FixtureStore) -> dict[str, dict]:
+    """Map change id -> its human-readable content for the report (no opaque ids in the UI)."""
+    out: dict[str, dict] = {}
+    for c in store.list_changes():
+        out[c.id] = {
+            "id": c.id,
+            "service": getattr(c, "service", None),
+            "summary": getattr(c, "summary", None),
+            "time": getattr(c, "time", None),
+            "diff_touches": list(getattr(c, "diff_touches", []) or []),
+        }
+    return out
+
+
 def _run_agent(sink: EventSink, store: FixtureStore, symptom: str, alertnames: list[str]) -> None:
     try:
         sink.emit("status", message="starting investigation")
-        investigate(anthropic.Anthropic(), store, symptom, alertnames, events=sink)
+        result = investigate(anthropic.Anthropic(), store, symptom, alertnames, events=sink)
+        # Emit a single enriched report: change ids resolved to real descriptions, plus
+        # the blast radius from the subagent findings, so the UI can show a real RCA.
+        report = result.report or {}
+        by_id = _hydrate_changes(store)
+        culprit_id = report.get("culprit_change_id")
+        sink.emit(
+            "report",
+            agent="manager",
+            root_cause=report.get("root_cause"),
+            culprit=by_id.get(culprit_id, {"id": culprit_id}) if culprit_id else None,
+            ruled_out=[by_id.get(cid, {"id": cid}) for cid in report.get("ruled_out_change_ids", [])],
+            evidence=report.get("evidence", []),
+            timeline=report.get("timeline", []),
+            findings=result.findings,
+            subagents=result.subagents,
+        )
     except Exception as exc:  # surface any failure to the UI rather than hanging
         sink.emit("error", message=f"{type(exc).__name__}: {exc}"[:300])
     finally:

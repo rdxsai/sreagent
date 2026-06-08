@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   Brain,
   Wrench,
@@ -56,9 +56,11 @@ function buildBlocks(events: AgentEvent[]): Block[] {
         confidence: e.confidence,
         suspect: e.suspect_change_id,
       });
+    } else if (e.type === "report") {
+      blocks.push({ kind: "report", data: e }); // enriched final report (hydrated changes + blast radius)
     } else if (e.type === "terminal") {
-      if (e.tool === "report_root_cause") blocks.push({ kind: "report", data: e.data });
-      else if (e.tool === "report_finding") blocks.push({ kind: "worker_finding", data: e.data });
+      // report_root_cause is ignored here; the enriched "report" event renders the final card
+      if (e.tool === "report_finding") blocks.push({ kind: "worker_finding", data: e.data });
       else if (e.tool === "report_change_verdict") blocks.push({ kind: "change_verdict", data: e.data });
     } else if (e.type === "status") {
       blocks.push({ kind: "status", message: e.message ?? "" });
@@ -132,32 +134,118 @@ function FindingPill({ b }: { b: Extract<Block, { kind: "finding" }> }) {
   );
 }
 
-function ReportCard({ data }: { data: any }) {
-  const rc = data?.root_cause ?? {};
-  const where = rc.kind === "edge" ? `${rc.caller} → ${rc.callee}` : rc.service;
+function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/5 p-4">
-      <div className="mb-2 flex items-center gap-2 text-emerald-300">
-        <CheckCircle2 className="h-4 w-4" />
-        <span className="text-sm font-semibold">Root cause identified</span>
-      </div>
-      <div className="grid gap-1.5 text-[13px]">
-        <Row label="Where" value={`${where} (${rc.kind})`} />
-        {rc.type && <Row label="Fault" value={rc.type} />}
-        <Row label="Culprit change" value={data?.culprit_change_id} mono />
-        {Array.isArray(data?.ruled_out_change_ids) && (
-          <Row label="Ruled out" value={data.ruled_out_change_ids.join(", ")} mono dim />
-        )}
-      </div>
+    <div>
+      <div className="mb-1 text-[10.5px] font-semibold uppercase tracking-wide text-emerald-400/70">{title}</div>
+      {children}
     </div>
   );
 }
 
-function Row({ label, value, mono, dim }: { label: string; value?: string; mono?: boolean; dim?: boolean }) {
+function ChangeLine({ c, culprit }: { c: any; culprit?: boolean }) {
   return (
-    <div className="flex gap-2">
-      <span className="w-28 shrink-0 text-slate-500">{label}</span>
-      <span className={cn(mono && "font-mono", dim ? "text-slate-500" : "text-slate-200")}>{value}</span>
+    <div className={cn("flex flex-wrap items-baseline gap-x-2 text-[12.5px]", culprit ? "text-slate-200" : "text-slate-400")}>
+      <span className="font-mono text-[11px] text-slate-500">{c?.id}</span>
+      <span>{c?.summary ?? "(no description)"}</span>
+      {c?.service && <span className="text-slate-500">· {c.service}</span>}
+      {c?.time != null && <span className="text-slate-500">· {c.time}s</span>}
+      {Array.isArray(c?.diff_touches) && c.diff_touches.length > 0 && (
+        <span className="font-mono text-[11px] text-slate-600">touched {c.diff_touches.join(", ")}</span>
+      )}
+    </div>
+  );
+}
+
+function ReportCard({ data }: { data: any }) {
+  const rc = data?.root_cause ?? {};
+  const where = rc.kind === "edge" ? `${rc.caller} → ${rc.callee}` : rc.service;
+  const findings: any[] = data?.findings ?? [];
+  const origin = findings.find((f) => f?.is_origin);
+  const victims = findings.filter((f) => f && !f.is_origin);
+  const culprit = data?.culprit;
+  const ruledOut: any[] = data?.ruled_out ?? [];
+  const evidence: string[] = data?.evidence ?? [];
+  const timeline: any[] = data?.timeline ?? [];
+  const confidence = typeof origin?.confidence === "number" ? `${(origin.confidence * 100).toFixed(0)}%` : null;
+
+  const summary =
+    `The ${rc.type ?? "fault"} originated in ${where}` +
+    (culprit?.summary ? `, triggered by a change to ${culprit.service ?? where}: ${culprit.summary}.` : ".") +
+    (victims.length ? ` ${victims.map((v) => v.service).join(", ")} ${victims.length > 1 ? "were" : "was"} affected downstream.` : "");
+
+  return (
+    <div className="space-y-3.5 rounded-lg border border-emerald-500/40 bg-emerald-500/[0.06] p-4">
+      <div className="flex items-center gap-2 text-emerald-300">
+        <CheckCircle2 className="h-4 w-4" />
+        <span className="text-sm font-semibold">Incident root-cause report</span>
+        {confidence && <span className="ml-auto text-[11px] text-emerald-400/70">confidence {confidence}</span>}
+      </div>
+
+      <p className="text-[13.5px] leading-relaxed text-slate-200">{summary}</p>
+
+      <div className="grid gap-3 border-t border-emerald-500/15 pt-3 sm:grid-cols-2">
+        <Section title="Origin">
+          <div className="text-[13px] text-slate-200">
+            {where} <span className="text-slate-500">· {rc.kind}</span>
+          </div>
+          {rc.type && <div className="text-[12px] text-slate-500">{rc.type}</div>}
+        </Section>
+        <Section title="Blast radius">
+          <div className="text-[12.5px] text-slate-300">
+            {victims.length ? `${victims.map((v) => v.service).join(", ")} (downstream victims)` : "contained to the origin"}
+          </div>
+        </Section>
+      </div>
+
+      <Section title="Triggering change">
+        {culprit ? <ChangeLine c={culprit} culprit /> : <span className="text-[12.5px] text-slate-500">none identified</span>}
+      </Section>
+
+      {culprit && (
+        <Section title="Recommended action">
+          <div className="text-[12.5px] text-slate-300">
+            Roll back {culprit.summary ? `"${culprit.summary}"` : culprit.id} on{" "}
+            <span className="font-mono">{culprit.service ?? where}</span> and confirm the signals recover.
+          </div>
+        </Section>
+      )}
+
+      {evidence.length > 0 && (
+        <Section title="Evidence">
+          <ul className="space-y-0.5">
+            {evidence.map((e, i) => (
+              <li key={i} className="flex gap-2 text-[12.5px] text-slate-300">
+                <span className="text-emerald-500/60">•</span>
+                {e}
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
+
+      {timeline.length > 0 && (
+        <Section title="Timeline">
+          <ul className="space-y-0.5 font-mono text-[11.5px]">
+            {timeline.map((t, i) => (
+              <li key={i} className="flex gap-2 text-slate-400">
+                <span className="w-12 shrink-0 text-slate-500">{t.second}s</span>
+                <span>{t.detail}</span>
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
+
+      {ruledOut.length > 0 && (
+        <Section title={`Ruled out (${ruledOut.length})`}>
+          <div className="space-y-0.5">
+            {ruledOut.map((c, i) => (
+              <ChangeLine key={i} c={c} />
+            ))}
+          </div>
+        </Section>
+      )}
     </div>
   );
 }

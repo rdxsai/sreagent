@@ -39,4 +39,21 @@ export type AgentEvent = {
   suspect_change_id?: string | null;
   data?: any;
   message?: string;
+  // enriched final report
+  root_cause?: any;
+  culprit?: Change | null;
+  ruled_out?: Change[];
+  evidence?: string[];
+  timeline?: { second: number; kind: string; detail: string }[];
+  findings?: any[];
+  subagents?: number;
 };
+
+export type Change = {
+  id: string;
+  service?: string | null;
+  summary?: string | null;
+  time?: number | null;
+  diff_touches?: string[];
+};
+
