@@ -48,7 +48,22 @@ def handle_alert_payload(payload: dict[str, Any], on_alert: OnAlert) -> dict[str
 
 
 def create_app(on_alert: OnAlert = default_on_alert) -> FastAPI:
-    app = FastAPI(title="Sentinel alert receiver")
+    app = FastAPI(title="Sentinel")
+
+    # Dev convenience: the Vite frontend runs on a different origin. In production the
+    # built frontend is served same-origin so this is a no-op.
+    from fastapi.middleware.cors import CORSMiddleware
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    from sentinel.api.demo import router as demo_router
+
+    app.include_router(demo_router)
 
     @app.post("/alert")
     async def alert(request: Request) -> dict[str, Any]:
