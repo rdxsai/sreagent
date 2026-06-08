@@ -26,9 +26,12 @@ from sentinel.agent.investigator import (
     run_investigator,
 )
 from sentinel.agent.loop import LoopResult, run_loop
+from sentinel.observability import get_logger
 from sentinel.registry import REGISTRY
 from sentinel.tools.models import RootCauseReport
 from sentinel.tools.store import TelemetryStore
+
+log = get_logger("sentinel.manager")
 
 MANAGER_SYSTEM = (
     "You are Sentinel, the manager agent for autonomous SRE incident response. You coordinate isolated "
@@ -60,6 +63,7 @@ class ManagerResult:
     findings: list[dict[str, Any]] = field(default_factory=list)
     subagents: int = 0
     rejected_findings: int = 0
+    trace: list[dict[str, Any]] = field(default_factory=list)
 
 
 def run_manager(
@@ -79,6 +83,7 @@ def run_manager(
 ) -> ManagerResult:
     worker_usage: Counter[str] = Counter()
     worker_calls: list[str] = []
+    worker_events: list[dict[str, Any]] = []
     findings: list[dict[str, Any]] = []
     lock = threading.Lock()
     counters = {"subagents": 0, "rejected": 0}
@@ -91,9 +96,11 @@ def run_manager(
             for key, value in loop_result.usage.items():
                 worker_usage[key] += value
             worker_calls.extend(loop_result.calls)
+            worker_events.extend(loop_result.events)
             counters["subagents"] += 1
 
     def _investigate_service(service: str) -> dict[str, Any]:
+        log.info("spawn_investigator", service=service)
         finding, loop_result = run_investigator(
             client, service, store,
             model=worker_model, effort=effort, max_iters=worker_max_iters,
@@ -153,4 +160,5 @@ def run_manager(
         findings=findings,
         subagents=counters["subagents"],
         rejected_findings=counters["rejected"],
+        trace=manager_loop.events + worker_events,
     )

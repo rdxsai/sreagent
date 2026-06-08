@@ -23,6 +23,9 @@ from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_ex
 
 from sentinel.agent.hooks import HookRunner, RunContext, ToolCall
 from sentinel.agent.ratelimit import RateLimiter
+from sentinel.observability import get_logger
+
+log = get_logger("sentinel.agent")
 
 Dispatch = Callable[[str, dict[str, Any]], dict[str, Any]]
 
@@ -45,6 +48,7 @@ class LoopResult:
     stop: str = "max_iters"
     usage: dict[str, int] = field(default_factory=dict)
     feedback: str = ""
+    events: list[dict[str, Any]] = field(default_factory=list)
 
 
 @retry(
@@ -106,6 +110,9 @@ def run_loop(
     if effort and effort != "default":
         create_kwargs["output_config"] = {"effort": effort}
 
+    rl = log.bind(agent=ctx.agent_id, model=model)
+    rl.info("loop_start", tools=len(tools_schema), terminal=terminal_tool)
+
     for iterations in range(1, max_iters + 1):
         resp = create_message(client, messages=messages, **create_kwargs)
         u = resp.usage
@@ -134,6 +141,7 @@ def run_loop(
             decision = hooks.pre_tool_use(call, ctx)
             if decision.action == "deny":
                 denials += 1
+                rl.info("tool_blocked", tool=tu.name, reason=decision.reason)
                 results.append(
                     {
                         "type": "tool_result",
@@ -168,6 +176,7 @@ def run_loop(
                 is_error = isinstance(out, dict) and "error" in out
                 if is_error:
                     tool_errors += 1
+                rl.debug("tool_call", tool=tu.name, iter=iterations, error=is_error)
                 results.append(
                     {"type": "tool_result", "tool_use_id": tu.id, "content": json.dumps(out), "is_error": is_error}
                 )
@@ -180,6 +189,7 @@ def run_loop(
             stop = "budget_exceeded"
             break
 
+    rl.info("loop_stop", stop=stop, iters=iterations, calls=len(calls), tool_errors=tool_errors, denials=denials)
     return LoopResult(
         terminal=terminal,
         calls=calls,
@@ -189,4 +199,5 @@ def run_loop(
         stop=stop,
         usage=dict(usage),
         feedback="\n\n".join(feedback_parts),
+        events=list(ctx.events),
     )
