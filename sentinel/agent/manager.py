@@ -42,8 +42,10 @@ MANAGER_SYSTEM = (
     "ServiceFinding (is_origin, fault_type, suspect change, evidence). Use investigate_service for one targeted "
     "follow-up, or investigate_change to confirm a suspect change, if needed.\n"
     "3) RECONCILE: from the findings choose the origin (the service whose own work failed, not a victim that calls "
-    "a failing dependency), confirm the culprit change (diff_touches match the failure and it precedes onset), rule "
-    "out the other changes, and call report_root_cause exactly once.\n\n"
+    "a failing dependency), then confirm the culprit change and call report_root_cause exactly once.\n\n"
+    "When picking the culprit change, trust an investigator's content-based suspect: match the change's diff_touches "
+    "to the observed failure. A same-service change that is NEARER to onset is frequently a decoy, proximity is not "
+    "causation, so do not pick a change by timing alone over one whose touched area actually explains the fault. "
     "Attribution is trace-based, not a single error-rate number. Immediately before report_root_cause, include a "
     "<feedback>...</feedback> block with frank notes on the tools and the orchestration. Be token-efficient."
 )
@@ -117,7 +119,8 @@ def run_manager(
             return {"findings": results}
         if name == "investigate_change":
             verdict, loop_result = run_change_investigator(
-                client, tool_input["change_id"], tool_input["service"], store,
+                client, tool_input["change_id"], tool_input["service"],
+                tool_input.get("incident_summary", "the observed incident"), store,
                 model=worker_model, effort=effort, max_iters=worker_max_iters,
                 max_tokens=max_tokens, output_budget=output_budget, max_tool_calls=worker_max_tool_calls,
             )

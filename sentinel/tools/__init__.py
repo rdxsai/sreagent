@@ -12,6 +12,7 @@ from sentinel.tools import (
     logs,
     metrics,
     report,
+    runbooks,
     topology,
     traces,
 )
@@ -28,6 +29,7 @@ __all__ = [
     "logs",
     "metrics",
     "report",
+    "runbooks",
     "topology",
     "traces",
 ]

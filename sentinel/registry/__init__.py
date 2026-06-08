@@ -114,6 +114,14 @@ class ToolRegistry:
         return self.anthropic_schemas(namespaces=namespaces, names=names)
 
     def dispatch(self, name: str, raw_input: dict[str, Any], store: Any) -> dict[str, Any]:
+        if name not in self._specs:
+            return {
+                "error": {
+                    "code": "unknown_tool",
+                    "message": f"unknown tool: {name}",
+                    "hint": "call one of the tools you were given; check the exact name",
+                }
+            }
         spec = self.get(name)
         try:
             params = spec.input_model.model_validate(raw_input)

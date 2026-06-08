@@ -32,10 +32,12 @@ INVESTIGATOR_SYSTEM = (
 )
 
 CHANGE_INVESTIGATOR_SYSTEM = (
-    "You are an investigator subagent assessing whether ONE change caused an SRE incident. You have a scoped set of "
-    "read-only tools (changes and traces). You have no memory of the manager's work.\n\n"
-    "Read the change's content (diff_touches, summary) and judge whether it plausibly causes the observed failure, "
-    "and whether its time precedes the failure onset (a cause must precede its symptom). Be concise.\n\n"
+    "You are an investigator subagent assessing whether ONE change caused an SRE incident. You have read-only tools "
+    "(changes, traces, metrics, correlate). You have no memory of the manager's work.\n\n"
+    "You are told the OBSERVED fault. Judge whether this change plausibly causes THAT fault: compare its diff_touches "
+    "and summary to the fault, and confirm its time precedes onset (a cause precedes its symptom). The fault may be an "
+    "error, a latency/GC slowdown, or CPU/resource saturation, and may have NO error spans, so do not assume errors; "
+    "verify the actual signal with metrics/traces when needed. Be concise.\n\n"
     "When done, call report_change_verdict exactly once with is_culprit, a calibrated confidence, and your reason."
 )
 
@@ -45,7 +47,9 @@ def investigator_tool_names() -> set[str]:
 
 
 def change_investigator_tool_names() -> set[str]:
-    return {s.name for s in REGISTRY.specs() if s.namespace in {"changes", "traces"}} | {"report_change_verdict"}
+    return {
+        s.name for s in REGISTRY.specs() if s.namespace in {"changes", "traces", "metrics", "correlate"}
+    } | {"report_change_verdict"}
 
 
 def manager_tool_names() -> set[str]:
@@ -99,6 +103,7 @@ def run_change_investigator(
     client: anthropic.Anthropic,
     change_id: str,
     service: str,
+    incident_summary: str,
     store: TelemetryStore,
     *,
     model: str,
@@ -109,7 +114,10 @@ def run_change_investigator(
     max_tool_calls: int,
 ) -> tuple[ChangeVerdict, LoopResult]:
     ctx = RunContext(store=store, agent_id=f"change:{change_id}", max_tool_calls=max_tool_calls)
-    goal = f"Assess whether change '{change_id}' on service '{service}' is the culprit for this incident."
+    goal = (
+        f"Assess whether change '{change_id}' on service '{service}' is the culprit. "
+        f"Observed fault: {incident_summary}."
+    )
     result = run_loop(
         client,
         model=model,

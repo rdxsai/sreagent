@@ -117,6 +117,12 @@ __all__ = [
     "InvestigateChangeInput",
     "ChangeVerdict",
     "FindingAck",
+    "RunbookSearchInput",
+    "RunbookMatch",
+    "RunbookSearchOutput",
+    "RunbookGetInput",
+    "Runbook",
+    "RunbookGetOutput",
 ]
 
 SpanKind = Literal["server", "client", "internal", "producer", "consumer"]
@@ -784,6 +790,13 @@ class ParallelFindings(BaseModel):
 class InvestigateChangeInput(BaseModel):
     change_id: str = Field(min_length=1)
     service: str = Field(min_length=1, description="the service the change belongs to")
+    incident_summary: str = Field(
+        min_length=1,
+        description=(
+            "one line describing the observed fault so the assessment matches reality, not just errors, "
+            "e.g. 'ad CPU saturated to ~4 cores, request latency normal' or 'payment charge spans error'"
+        ),
+    )
 
 
 class ChangeVerdict(BaseModel):
@@ -795,3 +808,37 @@ class ChangeVerdict(BaseModel):
 
 class FindingAck(BaseModel):
     accepted: bool
+
+
+# ---- runbook (knowledge base) ---------------------------------------------
+
+
+class RunbookSearchInput(BaseModel):
+    query: str = Field(min_length=1, description="symptom keywords, e.g. 'errors', 'latency', 'cpu saturation', 'change'")
+    limit: int = Field(default=5, ge=1, le=10)
+
+
+class RunbookMatch(BaseModel):
+    id: str
+    title: str
+    when: str = Field(description="when this runbook applies")
+
+
+class RunbookSearchOutput(BaseModel):
+    matches: list[RunbookMatch] = Field(description="matching runbooks by relevance; open one with runbook_get")
+
+
+class RunbookGetInput(BaseModel):
+    runbook_id: str = Field(min_length=1)
+
+
+class Runbook(BaseModel):
+    id: str
+    title: str
+    when: str
+    steps: list[str] = Field(description="the diagnostic procedure, generic SRE guidance")
+
+
+class RunbookGetOutput(BaseModel):
+    runbook: Runbook | None = None
+    note: str | None = None

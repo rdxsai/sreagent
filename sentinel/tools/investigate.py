@@ -60,7 +60,9 @@ def investigate_change(params: InvestigateChangeInput, store: TelemetryStore) ->
     """Spawn a subagent to assess whether one specific change is the culprit.
 
     The subagent compares the change's diff_touches against the observed failure and
-    its timing against onset, returning a ChangeVerdict. Use it to confirm a suspect
-    change when same-service candidates can't be separated by timing alone.
+    its timing against onset, returning a ChangeVerdict. Pass an incident_summary
+    describing the fault (errors, latency, or CPU saturation) so it assesses against
+    the real fault, not just errors. Use it to confirm a suspect change when
+    same-service candidates can't be separated by timing alone.
     """
     raise ToolError(_ORCHESTRATION_ONLY, code="orchestration_only")

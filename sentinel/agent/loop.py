@@ -146,7 +146,10 @@ def run_loop(
                     content = json.dumps({"error": {"code": "invalid_input", "message": str(exc)[:500]}})
                 results.append({"type": "tool_result", "tool_use_id": tu.id, "content": content})
             else:
-                out = dispatch(tu.name, tool_input)
+                try:
+                    out = dispatch(tu.name, tool_input)
+                except Exception as exc:  # a tool/subagent failure must not crash the run
+                    out = {"error": {"code": "tool_failed", "message": f"{type(exc).__name__}: {exc}"[:300]}}
                 out = hooks.post_tool_use(call, out, ctx)
                 ctx.tool_calls += 1
                 is_error = isinstance(out, dict) and "error" in out
