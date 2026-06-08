@@ -27,6 +27,7 @@ from tenacity import (
     wait_exponential,
 )
 
+from sentinel.agent.hooks import HookRunner, RunContext, ToolCall, default_hooks
 from sentinel.registry import REGISTRY
 from sentinel.tools.models import RootCauseReport
 from sentinel.tools.report import REPORT_TOOL
@@ -41,6 +42,7 @@ DEFAULT_EFFORT = os.environ.get("SENTINEL_EVAL_EFFORT", "medium")
 DEFAULT_MAX_ITERS = int(os.environ.get("SENTINEL_EVAL_MAX_ITERS", "18"))
 DEFAULT_OUTPUT_BUDGET = int(os.environ.get("SENTINEL_EVAL_OUTPUT_BUDGET", "50000"))
 DEFAULT_MAX_TOKENS = int(os.environ.get("SENTINEL_EVAL_MAX_TOKENS", "6000"))
+DEFAULT_MAX_TOOL_CALLS = int(os.environ.get("SENTINEL_EVAL_MAX_TOOL_CALLS", "60"))
 _MIN_INTERVAL = float(os.environ.get("SENTINEL_EVAL_MIN_INTERVAL", "0"))
 
 # opus-4-6 pricing per 1M tokens
@@ -89,6 +91,8 @@ class TaskResult:
     stop: str = ""
     usage: dict[str, int] = field(default_factory=dict)
     feedback: str = ""
+    denials: int = 0
+    redactions: int = 0
 
     @property
     def call_count(self) -> int:
@@ -142,6 +146,8 @@ def run_task(
     store = FixtureStore(scenario.public_dir)
     truth = load_truth(scenario.truth_path)
     tools = REGISTRY.anthropic_schemas()
+    hooks = HookRunner(default_hooks())
+    hook_ctx = RunContext(store=store, agent_id="manager", max_tool_calls=DEFAULT_MAX_TOOL_CALLS)
     system = [{"type": "text", "text": SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}]
     messages: list[dict[str, Any]] = [
         {"role": "user", "content": build_task_prompt(scenario)}
@@ -152,6 +158,7 @@ def run_task(
     feedback_parts: list[str] = []
     report: dict[str, Any] | None = None
     tool_errors = 0
+    denials = 0
     stop = "max_iters"
     iterations = 0
 
@@ -190,9 +197,28 @@ def run_task(
         done = False
         for tu in tool_uses:
             calls.append(tu.name)
+            call = ToolCall(name=tu.name, input=tu.input if isinstance(tu.input, dict) else {})
+            decision = hooks.pre_tool_use(call, hook_ctx)
+            if decision.action == "deny":
+                denials += 1
+                results.append(
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": tu.id,
+                        "content": json.dumps({"error": {"code": "blocked_by_hook", "message": decision.reason}}),
+                        "is_error": True,
+                    }
+                )
+                log.debug("tool_blocked", scenario=scenario.id, tool=tu.name, reason=decision.reason)
+                continue
+            tool_input = (
+                decision.modified_input
+                if decision.action == "modify" and decision.modified_input is not None
+                else call.input
+            )
             if tu.name == REPORT_TOOL:
                 try:
-                    parsed = RootCauseReport.model_validate(tu.input)
+                    parsed = RootCauseReport.model_validate(tool_input)
                     report = parsed.model_dump(mode="json")
                     content = json.dumps({"accepted": True})
                     done = True
@@ -203,7 +229,9 @@ def run_task(
                     )
                 results.append({"type": "tool_result", "tool_use_id": tu.id, "content": content})
             else:
-                out = REGISTRY.dispatch(tu.name, tu.input, store)
+                out = REGISTRY.dispatch(tu.name, tool_input, store)
+                out = hooks.post_tool_use(call, out, hook_ctx)
+                hook_ctx.tool_calls += 1
                 is_error = isinstance(out, dict) and "error" in out
                 if is_error:
                     tool_errors += 1
@@ -236,4 +264,6 @@ def run_task(
         stop=stop,
         usage=dict(usage),
         feedback="\n\n".join(feedback_parts),
+        denials=denials,
+        redactions=hook_ctx.redactions,
     )

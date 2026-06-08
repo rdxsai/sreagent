@@ -37,7 +37,10 @@ def _print_task(r: TaskResult) -> None:
             f"ruled_out={r.report.get('ruled_out_change_ids')}"
         )
     seq = Counter(r.calls)
-    print(f"  stop={r.stop} iterations={r.iterations} tool_calls={r.call_count} tool_errors={r.tool_errors}")
+    print(
+        f"  stop={r.stop} iterations={r.iterations} tool_calls={r.call_count} "
+        f"tool_errors={r.tool_errors} hook_denials={r.denials} hook_redactions={r.redactions}"
+    )
     print(f"  call_mix={dict(seq)}")
     print(f"  call_sequence={r.calls}")
     u = r.usage
@@ -82,6 +85,8 @@ def main() -> int:
                     "stop": result.stop,
                     "usage": result.usage,
                     "feedback": result.feedback,
+                    "denials": result.denials,
+                    "redactions": result.redactions,
                 },
                 indent=2,
             ),

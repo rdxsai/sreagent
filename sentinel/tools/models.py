@@ -110,6 +110,7 @@ __all__ = [
     "OnsetConsensus",
     "LatencyOriginInput",
     "LatencyOrigin",
+    "ServiceFinding",
 ]
 
 SpanKind = Literal["server", "client", "internal", "producer", "consumer"]
@@ -733,4 +734,24 @@ class LatencyOrigin(BaseModel):
     service: str | None = Field(default=None, description="the service whose own work (self-time) is slowest")
     self_latency_p95_ms: float = Field(default=0.0, description="p95 of the service's own time, excluding downstream waits")
     self_latency_max_ms: float = 0.0
+    evidence: list[str] = Field(default_factory=list)
+
+
+# ---- subagent contract ----------------------------------------------------
+
+
+class ServiceFinding(BaseModel):
+    """An investigator subagent's structured verdict on one service.
+
+    This is the output contract the manager reconciles; the FindingValidator hook
+    checks it on SubagentStop and retries the worker on a violation.
+    """
+
+    service: str = Field(min_length=1)
+    is_origin: bool = Field(description="true if this service is the fault origin, not a propagation victim")
+    fault_type: str | None = Field(default=None, description="error | latency | cpu_saturation | edge | none")
+    own_server_errors: int = Field(default=0, ge=0, description="the service's own erroring server spans")
+    shifted_signals: list[str] = Field(default_factory=list, description="metrics that moved after onset")
+    suspect_change_id: str | None = Field(default=None, description="the change on this service most likely responsible")
+    confidence: float = Field(ge=0.0, le=1.0)
     evidence: list[str] = Field(default_factory=list)
