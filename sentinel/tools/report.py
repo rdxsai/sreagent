@@ -10,15 +10,20 @@ from statistics import fmean
 from sentinel.registry import tool
 from sentinel.tools.models import (
     BuildEvidenceInput,
+    ChangeVerdict,
     EvidenceBundle,
+    FindingAck,
     ReportAck,
     ReportCheck,
     RootCauseReport,
+    ServiceFinding,
     TimelineEntry,
 )
 from sentinel.tools.store import TelemetryStore
 
 REPORT_TOOL = "report_root_cause"
+FINDING_TOOL = "report_finding"
+CHANGE_VERDICT_TOOL = "report_change_verdict"
 
 _SIGNAL_THRESHOLDS = {"request_error_rate": 0.02, "latency_p95_ms": 100.0, "cpu_cores": 1.0}
 _SIGNAL_LABELS = {"request_error_rate": "error rate", "latency_p95_ms": "p95 latency", "cpu_cores": "cpu cores"}
@@ -104,3 +109,26 @@ def report_self_check(params: RootCauseReport, store: TelemetryStore) -> ReportC
     if not params.evidence:
         issues.append("evidence is empty; attach the supporting signals")
     return ReportCheck(ok=not issues, issues=issues)
+
+
+@tool(namespace="report")
+def report_finding(params: ServiceFinding, store: object) -> FindingAck:
+    """Submit your ServiceFinding for the service you investigated and end your work.
+
+    Call this exactly once. Set is_origin true only if THIS service's own work failed,
+    its own server spans error, or its own latency/CPU shifted after onset, not if it
+    merely calls a failing dependency (that is a victim, not the origin). Include the
+    suspect change on this service, your confidence, and the evidence you found.
+    """
+    return FindingAck(accepted=True)
+
+
+@tool(namespace="report")
+def report_change_verdict(params: ChangeVerdict, store: object) -> FindingAck:
+    """Submit your verdict on whether the assessed change is the culprit, and end your work.
+
+    Call this exactly once. Set is_culprit true only if the change's diff_touches
+    plausibly cause the observed failure and its timing precedes onset; give your
+    confidence and the reason.
+    """
+    return FindingAck(accepted=True)

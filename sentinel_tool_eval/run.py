@@ -36,17 +36,22 @@ def _print_task(r: TaskResult) -> None:
             f"  reported: {rc} culprit={r.report.get('culprit_change_id')} "
             f"ruled_out={r.report.get('ruled_out_change_ids')}"
         )
-    seq = Counter(r.calls)
     print(
         f"  stop={r.stop} iterations={r.iterations} tool_calls={r.call_count} "
-        f"tool_errors={r.tool_errors} hook_denials={r.denials} hook_redactions={r.redactions}"
+        f"(manager={len(r.calls)} workers={len(r.worker_calls)}) subagents={r.subagents} "
+        f"tool_errors={r.tool_errors} hook_denials={r.denials}"
     )
-    print(f"  call_mix={dict(seq)}")
-    print(f"  call_sequence={r.calls}")
-    u = r.usage
+    print(f"  manager_calls={dict(Counter(r.calls))}")
+    if r.worker_calls:
+        print(f"  worker_calls={dict(Counter(r.worker_calls))}")
+    if r.findings:
+        for f in r.findings:
+            print(f"    finding: {f.get('service')} is_origin={f.get('is_origin')} "
+                  f"fault={f.get('fault_type')} suspect={f.get('suspect_change_id')} conf={f.get('confidence')}")
+    mu, wu = r.usage, r.worker_usage
     print(
-        f"  tokens: input={u.get('input', 0)} output={u.get('output', 0)} "
-        f"cache_read={u.get('cache_read', 0)} cache_write={u.get('cache_write', 0)} "
+        f"  tokens manager(opus): in={mu.get('input', 0)} out={mu.get('output', 0)} cache_read={mu.get('cache_read', 0)} | "
+        f"workers(sonnet): in={wu.get('input', 0)} out={wu.get('output', 0)} cache_read={wu.get('cache_read', 0)} | "
         f"est_cost=${r.est_cost_usd:.4f}"
     )
     if r.feedback:
@@ -80,13 +85,16 @@ def main() -> int:
                     "grade": result.grade,
                     "report": result.report,
                     "calls": result.calls,
+                    "worker_calls": result.worker_calls,
+                    "subagents": result.subagents,
+                    "findings": result.findings,
                     "tool_errors": result.tool_errors,
                     "iterations": result.iterations,
                     "stop": result.stop,
                     "usage": result.usage,
+                    "worker_usage": result.worker_usage,
                     "feedback": result.feedback,
                     "denials": result.denials,
-                    "redactions": result.redactions,
                 },
                 indent=2,
             ),

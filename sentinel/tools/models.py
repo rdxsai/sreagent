@@ -111,6 +111,12 @@ __all__ = [
     "LatencyOriginInput",
     "LatencyOrigin",
     "ServiceFinding",
+    "InvestigateServiceInput",
+    "InvestigateParallelInput",
+    "ParallelFindings",
+    "InvestigateChangeInput",
+    "ChangeVerdict",
+    "FindingAck",
 ]
 
 SpanKind = Literal["server", "client", "internal", "producer", "consumer"]
@@ -755,3 +761,37 @@ class ServiceFinding(BaseModel):
     suspect_change_id: str | None = Field(default=None, description="the change on this service most likely responsible")
     confidence: float = Field(ge=0.0, le=1.0)
     evidence: list[str] = Field(default_factory=list)
+
+
+# ---- investigate (subagent orchestration) ---------------------------------
+
+
+class InvestigateServiceInput(BaseModel):
+    service: str = Field(min_length=1, description="the candidate service to deep-dive in an isolated subagent")
+
+
+class InvestigateParallelInput(BaseModel):
+    services: list[str] = Field(
+        min_length=1, max_length=5,
+        description="candidate services (from triage) to investigate in parallel, one isolated subagent each",
+    )
+
+
+class ParallelFindings(BaseModel):
+    findings: list[ServiceFinding]
+
+
+class InvestigateChangeInput(BaseModel):
+    change_id: str = Field(min_length=1)
+    service: str = Field(min_length=1, description="the service the change belongs to")
+
+
+class ChangeVerdict(BaseModel):
+    change_id: str
+    is_culprit: bool
+    confidence: float = Field(ge=0.0, le=1.0)
+    reason: str
+
+
+class FindingAck(BaseModel):
+    accepted: bool

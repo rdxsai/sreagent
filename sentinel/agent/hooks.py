@@ -119,14 +119,17 @@ class SealGuard(Hook):
         return json.loads(redacted)
 
 
+_TERMINAL_TOOLS = ("report_root_cause", "report_finding", "report_change_verdict")
+
+
 class BudgetGuard(Hook):
     """Cost/runaway control: deny further tool calls past the per-run budget,
-    steering the agent to conclude (the final report is always allowed)."""
+    steering the agent to conclude (terminal report tools are always allowed)."""
 
     name = "budget_guard"
 
     def pre_tool_use(self, call: ToolCall, ctx: RunContext) -> ToolDecision | None:
-        if call.name == "report_root_cause":
+        if call.name in _TERMINAL_TOOLS:
             return None
         if ctx.tool_calls >= ctx.max_tool_calls:
             return ToolDecision(
@@ -140,15 +143,18 @@ class BudgetGuard(Hook):
 
 
 class ReportGate(Hook):
-    """Final-answer gate: deny report_root_cause if the report is malformed or
-    self-contradictory, so the agent fixes it before the run ends."""
+    """Terminal-answer gate: deny a malformed/contradictory final report (manager) or
+    an incomplete finding (investigator) so the agent fixes it before the run ends."""
 
     name = "report_gate"
 
     def pre_tool_use(self, call: ToolCall, ctx: RunContext) -> ToolDecision | None:
-        if call.name != "report_root_cause":
+        if call.name == "report_root_cause":
+            issues = report_issues(call.input, ctx.store)
+        elif call.name == "report_finding":
+            issues = finding_issues(call.input)
+        else:
             return None
-        issues = report_issues(call.input, ctx.store)
         if issues:
             return ToolDecision(action="deny", reason="report not ready: " + "; ".join(issues) + ". Fix and resubmit.")
         return None
@@ -212,6 +218,18 @@ def report_issues(report_input: dict[str, Any], store: Any) -> list[str]:
             issues.append(f"culprit_change_id {culprit} is not a known change")
     if culprit and culprit in (report_input.get("ruled_out_change_ids") or []):
         issues.append("culprit_change_id also appears in ruled_out_change_ids")
+    return issues
+
+
+def finding_issues(finding_input: dict[str, Any]) -> list[str]:
+    """Completeness checks for an investigator's ServiceFinding (used by ReportGate)."""
+    issues: list[str] = []
+    if not finding_input.get("service"):
+        issues.append("service is required")
+    if finding_input.get("is_origin") and not finding_input.get("evidence"):
+        issues.append("is_origin=true requires at least one evidence line")
+    if finding_input.get("is_origin") and not finding_input.get("fault_type"):
+        issues.append("is_origin=true requires a fault_type")
     return issues
 
 
