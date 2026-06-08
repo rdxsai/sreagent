@@ -11,6 +11,8 @@ function, all passed in.
 from __future__ import annotations
 
 import json
+import os
+import threading
 from collections import Counter
 from dataclasses import dataclass, field
 from typing import Any, Callable
@@ -20,8 +22,17 @@ from pydantic import BaseModel, ValidationError
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from sentinel.agent.hooks import HookRunner, RunContext, ToolCall
+from sentinel.agent.ratelimit import RateLimiter
 
 Dispatch = Callable[[str, dict[str, Any]], dict[str, Any]]
+
+# Shared across the manager and all investigator threads: a proactive RPS ceiling
+# plus a cap on in-flight API calls, so the parallel fan-out cannot burst.
+_LIMITER = RateLimiter(
+    rate_per_sec=float(os.environ.get("SENTINEL_API_RPS", "6")),
+    burst=int(os.environ.get("SENTINEL_API_BURST", "6")),
+)
+_CONCURRENCY = threading.Semaphore(int(os.environ.get("SENTINEL_API_CONCURRENCY", "8")))
 
 
 @dataclass
@@ -50,7 +61,9 @@ class LoopResult:
     reraise=True,
 )
 def create_message(client: anthropic.Anthropic, **kwargs: Any) -> Any:
-    return client.messages.create(**kwargs)
+    _LIMITER.acquire()  # proactive RPS ceiling, reactive backoff is the @retry above
+    with _CONCURRENCY:  # cap in-flight calls across the parallel fan-out
+        return client.messages.create(**kwargs)
 
 
 def extract_feedback(text: str) -> str:
