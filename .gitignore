@@ -77,3 +77,6 @@ Thumbs.db
 
 # Exploratory heavy multi-fault incident recorder (not part of the shipped harness)
 /scripts/heavy_incident/
+
+# Frontend deps
+node_modules/

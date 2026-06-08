@@ -73,6 +73,15 @@ def create_app(on_alert: OnAlert = default_on_alert) -> FastAPI:
         except (AllowlistError, ValidationError) as exc:
             raise HTTPException(status_code=400, detail=str(exc))
 
+    # Serve the built frontend (if present) same-origin, after the API routes.
+    from pathlib import Path
+
+    from fastapi.staticfiles import StaticFiles
+
+    dist = Path(__file__).resolve().parents[2] / "frontend" / "dist"
+    if dist.exists():
+        app.mount("/", StaticFiles(directory=str(dist), html=True), name="frontend")
+
     return app
 
 
