@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Run the evaluation harness over the recorded scenarios.
+# Usage: scripts/eval [scenario_id ...]   (SENTINEL_EVAL_REPEATS=k for reliability)
+set -euo pipefail
+cd "$(dirname "$0")/.."
+PY="${PYTHON:-.venv/bin/python}"
+exec "$PY" -m sentinel_tool_eval.run "$@"

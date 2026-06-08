@@ -1,7 +1,11 @@
+"""Integration: Alertmanager payload -> DerivedAlert mapping -> allowlist -> FastAPI handler."""
+
 from __future__ import annotations
+
 import pytest
+
 from labs.otel.alerting.allowlist import AllowlistError
-from sentinel.api.app import handle_alert_payload, create_app
+from sentinel.api.app import create_app, handle_alert_payload
 
 
 def _firing_payload(alertname="CheckoutFailureRate", signal="checkout_error_rate"):
@@ -25,7 +29,7 @@ def test_handle_alert_payload_rejects_non_allowlisted():
         handle_alert_payload(_firing_payload(alertname="PaymentChargeFailure"), lambda a: None)
 
 
-def test_alert_endpoint_returns_200(monkeypatch):
+def test_alert_endpoint_returns_200():
     pytest.importorskip("httpx")  # FastAPI TestClient needs httpx; skip if absent
     from fastapi.testclient import TestClient
     captured = []
@@ -36,7 +40,7 @@ def test_alert_endpoint_returns_200(monkeypatch):
     assert len(captured) == 1
 
 
-def test_alert_endpoint_rejects_non_allowlisted(monkeypatch):
+def test_alert_endpoint_rejects_non_allowlisted():
     pytest.importorskip("httpx")
     from fastapi.testclient import TestClient
     client = TestClient(create_app())

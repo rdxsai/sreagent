@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Run the unit + integration test suite.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+PY="${PYTHON:-.venv/bin/python}"
+exec "$PY" -m pytest tests/ "$@"

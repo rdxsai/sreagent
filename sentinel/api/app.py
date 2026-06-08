@@ -1,11 +1,14 @@
 from __future__ import annotations
 import logging
+import threading
 from typing import Any, Callable
 
+import anthropic
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import ValidationError
 
 from sentinel.fixtures.schemas import DerivedAlert
+from sentinel.tools.store import TelemetryStore
 from labs.otel.alerting.allowlist import AllowlistError
 from labs.otel.alerting.webhook import alertmanager_payload_to_alerts
 
@@ -15,8 +18,26 @@ OnAlert = Callable[[list[DerivedAlert]], None]
 
 
 def default_on_alert(alerts: list[DerivedAlert]) -> None:
-    # SEAM: the real agent kickoff is wired here once the agent exists (see plan).
+    # Inert default: no telemetry source or credentials at import time. Production
+    # wires the real agent via make_agent_on_alert(client, store) below.
     logger.info("received %d alert(s): %s", len(alerts), [a.alertname for a in alerts])
+
+
+def make_agent_on_alert(client: anthropic.Anthropic, store: TelemetryStore) -> OnAlert:
+    """Production wiring: each firing alert batch kicks off an agent investigation
+    against the configured telemetry store, in the background so the webhook returns
+    immediately."""
+    from sentinel.agent.runner import investigate
+
+    def _on_alert(alerts: list[DerivedAlert]) -> None:
+        names = [a.alertname for a in alerts]
+        summaries = [getattr(a, "annotations", {}).get("summary", "") for a in alerts]
+        symptom = "; ".join(s for s in summaries if s) or "; ".join(names) or "user-facing degradation"
+        threading.Thread(
+            target=lambda: investigate(client, store, symptom, names), daemon=True
+        ).start()
+
+    return _on_alert
 
 
 def handle_alert_payload(payload: dict[str, Any], on_alert: OnAlert) -> dict[str, Any]:

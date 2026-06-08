@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Run the Sentinel alert-receiver API locally.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+PY="${PYTHON:-.venv/bin/python}"
+exec "$PY" -m sentinel.api "$@"

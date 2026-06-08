@@ -74,3 +74,6 @@ Thumbs.db
 
 # Tool-eval run artifacts
 /sentinel_tool_eval/results/
+
+# Exploratory heavy multi-fault incident recorder (not part of the shipped harness)
+/scripts/heavy_incident/
