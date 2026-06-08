@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import anthropic
 
+from sentinel.agent.events import EventSink
 from sentinel.agent.hooks import HookRunner, RunContext, default_hooks
 from sentinel.agent.loop import LoopResult, run_loop
 from sentinel.registry import REGISTRY
@@ -67,6 +68,7 @@ def run_investigator(
     max_tokens: int,
     output_budget: int,
     max_tool_calls: int,
+    events: EventSink | None = None,
 ) -> tuple[ServiceFinding, LoopResult]:
     ctx = RunContext(store=store, agent_id=f"investigator:{service}", max_tool_calls=max_tool_calls)
     goal = (
@@ -88,6 +90,7 @@ def run_investigator(
         max_iters=max_iters,
         max_tokens=max_tokens,
         output_budget=output_budget,
+        events=events,
     )
     if result.terminal is not None:
         finding = ServiceFinding.model_validate(result.terminal)
@@ -112,6 +115,7 @@ def run_change_investigator(
     max_tokens: int,
     output_budget: int,
     max_tool_calls: int,
+    events: EventSink | None = None,
 ) -> tuple[ChangeVerdict, LoopResult]:
     ctx = RunContext(store=store, agent_id=f"change:{change_id}", max_tool_calls=max_tool_calls)
     goal = (
@@ -133,6 +137,7 @@ def run_change_investigator(
         max_iters=max_iters,
         max_tokens=max_tokens,
         output_budget=output_budget,
+        events=events,
     )
     if result.terminal is not None:
         verdict = ChangeVerdict.model_validate(result.terminal)

@@ -13,6 +13,7 @@ import os
 
 import anthropic
 
+from sentinel.agent.events import EventSink
 from sentinel.agent.manager import ManagerResult, run_manager
 from sentinel.observability import get_logger
 from sentinel.tools.store import TelemetryStore
@@ -47,8 +48,9 @@ def investigate(
     store: TelemetryStore,
     symptom: str,
     alertnames: list[str] | None = None,
+    events: EventSink | None = None,
 ) -> ManagerResult:
     log.info("investigation_start", symptom=symptom, alerts=alertnames or [])
-    result = run_manager(client, store, build_incident_prompt(symptom, alertnames), **_defaults())
+    result = run_manager(client, store, build_incident_prompt(symptom, alertnames), events=events, **_defaults())
     log.info("investigation_complete", subagents=result.subagents, reported=bool(result.report))
     return result

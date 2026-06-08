@@ -21,6 +21,7 @@ import anthropic
 from pydantic import BaseModel, ValidationError
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
+from sentinel.agent.events import EventSink, summarize_result
 from sentinel.agent.hooks import HookRunner, RunContext, ToolCall
 from sentinel.agent.ratelimit import RateLimiter
 from sentinel.observability import get_logger
@@ -70,6 +71,31 @@ def create_message(client: anthropic.Anthropic, **kwargs: Any) -> Any:
         return client.messages.create(**kwargs)
 
 
+@retry(
+    retry=retry_if_exception_type(
+        (anthropic.RateLimitError, anthropic.InternalServerError, anthropic.APITimeoutError, anthropic.APIConnectionError)
+    ),
+    wait=wait_exponential(multiplier=1, max=20),
+    stop=stop_after_attempt(4),
+    reraise=True,
+)
+def stream_message(client: anthropic.Anthropic, events: EventSink, agent: str, *, messages: list, **kwargs: Any) -> Any:
+    """Stream a turn, emitting thinking/text deltas live, and return the final message."""
+    _LIMITER.acquire()
+    with _CONCURRENCY:
+        with client.messages.stream(messages=messages, **kwargs) as stream:
+            for event in stream:
+                if getattr(event, "type", None) != "content_block_delta":
+                    continue
+                delta = event.delta
+                kind = getattr(delta, "type", None)
+                if kind == "thinking_delta":
+                    events.emit("thinking", agent=agent, text=delta.thinking)
+                elif kind == "text_delta":
+                    events.emit("text", agent=agent, text=delta.text)
+            return stream.get_final_message()
+
+
 def extract_feedback(text: str) -> str:
     start = text.find("<feedback>")
     end = text.find("</feedback>")
@@ -94,6 +120,7 @@ def run_loop(
     max_iters: int,
     max_tokens: int,
     output_budget: int,
+    events: EventSink | None = None,
 ) -> LoopResult:
     system = [{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}]
     messages: list[dict[str, Any]] = [{"role": "user", "content": initial_user}]
@@ -109,12 +136,17 @@ def run_loop(
     create_kwargs: dict[str, Any] = {"model": model, "max_tokens": max_tokens, "system": system, "tools": tools_schema}
     if effort and effort != "default":
         create_kwargs["output_config"] = {"effort": effort}
+    if events is not None:
+        create_kwargs["thinking"] = {"type": "adaptive"}  # stream the agent's reasoning for the demo
 
     rl = log.bind(agent=ctx.agent_id, model=model)
     rl.info("loop_start", tools=len(tools_schema), terminal=terminal_tool)
 
     for iterations in range(1, max_iters + 1):
-        resp = create_message(client, messages=messages, **create_kwargs)
+        if events is not None:
+            resp = stream_message(client, events, ctx.agent_id, messages=messages, **create_kwargs)
+        else:
+            resp = create_message(client, messages=messages, **create_kwargs)
         u = resp.usage
         usage["input"] += getattr(u, "input_tokens", 0) or 0
         usage["output"] += getattr(u, "output_tokens", 0) or 0
@@ -162,11 +194,15 @@ def run_loop(
                     terminal = parsed.model_dump(mode="json")
                     content = json.dumps({"accepted": True})
                     done = True
+                    if events is not None:
+                        events.emit("terminal", agent=ctx.agent_id, tool=tu.name, data=terminal)
                 except ValidationError as exc:
                     tool_errors += 1
                     content = json.dumps({"error": {"code": "invalid_input", "message": str(exc)[:500]}})
                 results.append({"type": "tool_result", "tool_use_id": tu.id, "content": content})
             else:
+                if events is not None:
+                    events.emit("tool_call", agent=ctx.agent_id, tool=tu.name, input=tool_input)
                 try:
                     out = dispatch(tu.name, tool_input)
                 except Exception as exc:  # a tool/subagent failure must not crash the run
@@ -177,6 +213,9 @@ def run_loop(
                 if is_error:
                     tool_errors += 1
                 rl.debug("tool_call", tool=tu.name, iter=iterations, error=is_error)
+                if events is not None:
+                    events.emit("tool_result", agent=ctx.agent_id, tool=tu.name,
+                                summary=summarize_result(out), is_error=is_error)
                 results.append(
                     {"type": "tool_result", "tool_use_id": tu.id, "content": json.dumps(out), "is_error": is_error}
                 )
