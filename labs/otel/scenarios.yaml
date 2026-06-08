@@ -1,6 +1,19 @@
 # Initial v1 scenario catalog for OpenTelemetry Demo recordings.
 #
 # This config is controller input and must not be passed to agent tools.
+#
+# Active set (locked 2026-06-07): payment_failure_001, payment_unreachable_001,
+#   product_catalog_failure_001, cart_failure_001, ad_manual_gc_001, ad_high_cpu_001.
+#   All six surface a clean signal against a clean baseline under self-driven load:
+#   service errors for payment/product-catalog, an edge error for payment_unreachable,
+#   cart and ad GC latency, and ad CPU saturation. Each fires the single unified
+#   UserFacingDegradation trigger (error, latency, or CPU-cores rule). Each carries one
+#   culprit (chg_0003) plus five decoys.
+# Deferred: recommendation_cache_failure (gradual leak: the request volume needed to build
+#   it overloads the path, so there is no clean baseline on this host),
+#   load_generator_flood_homepage_001 (throughput surge), kafka_queue_problems_001 (async
+#   consumer lag). The latter two attribute via rate/lag metrics rather than span.kind;
+#   all three are added as a clean extension after the six. See handoff.md.
 
 scenarios:
   - id: payment_failure_001
@@ -8,15 +21,15 @@ scenarios:
     raw_flag_key: paymentFailure
     variant: "100%"
     timing:
-      warmup_seconds: 180
+      warmup_seconds: 120
       injection_at_seconds: 300
-      recording_seconds: 900
+      recording_seconds: 600
     workload:
       profile: checkout_steady
       users: 20
       spawn_rate: 2
     public:
-      symptom: Checkout payment attempts started failing during the recording window.
+      symptom: Checkout attempts started failing during the recording window.
       sanitized_change:
         id: chg_0003
         time: 300
@@ -42,6 +55,27 @@ scenarios:
           summary: recommendation scoring parameter changed
           diff_touches:
             - scoring
+        - id: chg_0004
+          time: 350
+          service: payment
+          kind: runtime_config_change
+          summary: payment retry budget adjusted
+          diff_touches:
+            - retry_budget
+        - id: chg_0005
+          time: 255
+          service: currency
+          kind: runtime_config_change
+          summary: currency rate cache TTL changed
+          diff_touches:
+            - rate_cache
+        - id: chg_0006
+          time: 330
+          service: shipping
+          kind: runtime_config_change
+          summary: shipping rate table updated
+          diff_touches:
+            - rate_table
     truth:
       root_cause:
         kind: service
@@ -53,9 +87,9 @@ scenarios:
     raw_flag_key: paymentUnreachable
     variant: "on"
     timing:
-      warmup_seconds: 180
+      warmup_seconds: 120
       injection_at_seconds: 300
-      recording_seconds: 900
+      recording_seconds: 600
     workload:
       profile: checkout_steady
       users: 20
@@ -87,6 +121,27 @@ scenarios:
           summary: recommendation scoring parameter changed
           diff_touches:
             - scoring
+        - id: chg_0004
+          time: 350
+          service: checkout
+          kind: runtime_config_change
+          summary: checkout request timeout adjusted
+          diff_touches:
+            - timeout_config
+        - id: chg_0005
+          time: 255
+          service: cart
+          kind: runtime_config_change
+          summary: cart session retention parameter changed
+          diff_touches:
+            - session_store
+        - id: chg_0006
+          time: 330
+          service: email
+          kind: deploy
+          summary: order confirmation email template updated
+          diff_touches:
+            - email_template
     truth:
       root_cause:
         kind: edge
@@ -94,29 +149,29 @@ scenarios:
         callee: payment
         type: dependency_unreachable
 
-  - id: recommendation_cache_failure_001
-    display_name: Recommendation cache failure
-    raw_flag_key: recommendationCacheFailure
+  - id: cart_failure_001
+    display_name: Cart service degradation
+    raw_flag_key: cartFailure
     variant: "on"
     timing:
-      warmup_seconds: 180
+      warmup_seconds: 120
       injection_at_seconds: 300
-      recording_seconds: 900
+      recording_seconds: 600
     workload:
       profile: checkout_steady
       users: 20
       spawn_rate: 2
     public:
-      symptom: Recommendation responses degraded during the recording window.
+      symptom: Cart operations slowed and failed during the recording window.
       sanitized_change:
         id: chg_0003
         time: 300
-        service: recommendation
+        service: cart
         kind: runtime_config_change
-        summary: recommendation cache policy changed
+        summary: cart storage backend configuration changed
         diff_touches:
-          - cache_policy
-          - product_candidates
+          - cart_store
+          - session_backend
       decoy_changes:
         - id: chg_0001
           time: 270
@@ -128,31 +183,52 @@ scenarios:
             - layout_assets
         - id: chg_0002
           time: 285
-          service: payment
+          service: recommendation
           kind: runtime_config_change
-          summary: payment provider timeout parameter changed
+          summary: recommendation scoring parameter changed
           diff_touches:
-            - payment_provider
+            - scoring
+        - id: chg_0004
+          time: 350
+          service: cart
+          kind: runtime_config_change
+          summary: cart item quantity limit adjusted
+          diff_touches:
+            - quantity_limit
+        - id: chg_0005
+          time: 255
+          service: currency
+          kind: runtime_config_change
+          summary: currency rate cache TTL changed
+          diff_touches:
+            - rate_cache
+        - id: chg_0006
+          time: 330
+          service: shipping
+          kind: runtime_config_change
+          summary: shipping rate table updated
+          diff_touches:
+            - rate_table
     truth:
       root_cause:
         kind: service
-        service: recommendation
-        type: cache_failure
+        service: cart
+        type: cart_failure
 
   - id: product_catalog_failure_001
     display_name: Product catalog lookup failure
     raw_flag_key: productCatalogFailure
     variant: "on"
     timing:
-      warmup_seconds: 180
+      warmup_seconds: 120
       injection_at_seconds: 300
-      recording_seconds: 900
+      recording_seconds: 600
     workload:
       profile: checkout_steady
       users: 20
       spawn_rate: 2
     public:
-      symptom: A subset of product detail requests failed during the recording window.
+      symptom: Product detail requests failed during the recording window.
       sanitized_change:
         id: chg_0003
         time: 300
@@ -178,6 +254,27 @@ scenarios:
           summary: cart session retention parameter changed
           diff_touches:
             - session_store
+        - id: chg_0004
+          time: 350
+          service: product-catalog
+          kind: runtime_config_change
+          summary: product image variant configuration changed
+          diff_touches:
+            - image_variants
+        - id: chg_0005
+          time: 255
+          service: currency
+          kind: runtime_config_change
+          summary: currency rate cache TTL changed
+          diff_touches:
+            - rate_cache
+        - id: chg_0006
+          time: 330
+          service: recommendation
+          kind: runtime_config_change
+          summary: recommendation scoring parameter changed
+          diff_touches:
+            - scoring
     truth:
       root_cause:
         kind: service
@@ -189,15 +286,15 @@ scenarios:
     raw_flag_key: adHighCpu
     variant: "on"
     timing:
-      warmup_seconds: 180
+      warmup_seconds: 120
       injection_at_seconds: 300
-      recording_seconds: 900
+      recording_seconds: 600
     workload:
       profile: checkout_steady
       users: 20
       spawn_rate: 2
     public:
-      symptom: Ad responses slowed and ad service resource use increased during the recording window.
+      symptom: Ad responses slowed during the recording window.
       sanitized_change:
         id: chg_0003
         time: 300
@@ -223,6 +320,27 @@ scenarios:
           summary: recommendation scoring parameter changed
           diff_touches:
             - scoring
+        - id: chg_0004
+          time: 350
+          service: ad
+          kind: runtime_config_change
+          summary: ad creative cache size changed
+          diff_touches:
+            - creative_cache
+        - id: chg_0005
+          time: 255
+          service: cart
+          kind: runtime_config_change
+          summary: cart session retention parameter changed
+          diff_touches:
+            - session_store
+        - id: chg_0006
+          time: 330
+          service: currency
+          kind: runtime_config_change
+          summary: currency rate cache TTL changed
+          diff_touches:
+            - rate_cache
     truth:
       root_cause:
         kind: service
@@ -234,15 +352,15 @@ scenarios:
     raw_flag_key: adManualGc
     variant: "on"
     timing:
-      warmup_seconds: 180
+      warmup_seconds: 120
       injection_at_seconds: 300
-      recording_seconds: 900
+      recording_seconds: 600
     workload:
       profile: checkout_steady
       users: 20
       spawn_rate: 2
     public:
-      symptom: Ad responses slowed with memory-management pressure during the recording window.
+      symptom: Ad responses slowed during the recording window.
       sanitized_change:
         id: chg_0003
         time: 300
@@ -268,6 +386,27 @@ scenarios:
           summary: payment provider timeout parameter changed
           diff_touches:
             - payment_provider
+        - id: chg_0004
+          time: 350
+          service: ad
+          kind: runtime_config_change
+          summary: ad creative cache size changed
+          diff_touches:
+            - creative_cache
+        - id: chg_0005
+          time: 255
+          service: shipping
+          kind: runtime_config_change
+          summary: shipping rate table updated
+          diff_touches:
+            - rate_table
+        - id: chg_0006
+          time: 330
+          service: cart
+          kind: runtime_config_change
+          summary: cart session retention parameter changed
+          diff_touches:
+            - session_store
     truth:
       root_cause:
         kind: service
@@ -279,9 +418,9 @@ scenarios:
     raw_flag_key: loadGeneratorFloodHomepage
     variant: "on"
     timing:
-      warmup_seconds: 180
+      warmup_seconds: 120
       injection_at_seconds: 300
-      recording_seconds: 900
+      recording_seconds: 600
     workload:
       profile: homepage_steady
       users: 20
@@ -325,9 +464,9 @@ scenarios:
     raw_flag_key: kafkaQueueProblems
     variant: "on"
     timing:
-      warmup_seconds: 180
+      warmup_seconds: 120
       injection_at_seconds: 300
-      recording_seconds: 900
+      recording_seconds: 600
     workload:
       profile: checkout_steady
       users: 20

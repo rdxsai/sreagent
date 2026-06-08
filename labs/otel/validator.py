@@ -21,6 +21,9 @@ from sentinel.fixtures.schemas import DerivedAlert, MetricRow, PrivateTruth, Pub
 class QualityGates:
     error_rate_delta_min: float = 0.05
     latency_p95_delta_min_ratio: float = 1.5
+    # Minimum post-minus-pre increase in CPU cores for a saturation fault whose
+    # error/latency stay flat (e.g. ad_high_cpu): pegged cores are the only signal.
+    cpu_cores_delta_min: float = 1.0
     # Ceiling on the mean pre-onset error rate of the target service. Uses the mean
     # (not the worst sample) so transient baseline blips in real telemetry do not
     # fail an otherwise clean recording, with headroom for rate-quantization noise.
@@ -169,10 +172,10 @@ def _validate_signal_quality(
     target_metrics = [
         row
         for row in fixture.metrics
-        if row.service in target_services and _is_error_or_latency_metric(row)
+        if row.service in target_services and _is_impact_metric(row)
     ]
     if not any(row.time >= onset for row in target_metrics):
-        errors.append("target service has no post-onset error or latency metric")
+        errors.append("target service has no post-onset error, latency, or cpu metric")
 
     pre_error_rates = [
         row.value
@@ -194,13 +197,20 @@ def _validate_signal_quality(
         services=target_services,
         predicate=_is_latency_metric,
     )
+    cpu_delta = _post_minus_pre(
+        fixture.metrics,
+        onset=onset,
+        services=target_services,
+        predicate=_is_cpu_metric,
+    )
     has_error_impact = error_delta is not None and error_delta >= gates.error_rate_delta_min
     has_latency_impact = (
         latency_ratio is not None
         and latency_ratio >= gates.latency_p95_delta_min_ratio
     )
-    if not has_error_impact and not has_latency_impact:
-        errors.append("post-onset impact is below error and latency gates")
+    has_cpu_impact = cpu_delta is not None and cpu_delta >= gates.cpu_cores_delta_min
+    if not has_error_impact and not has_latency_impact and not has_cpu_impact:
+        errors.append("post-onset impact is below error, latency, and cpu gates")
 
     has_log_evidence = any(row.time >= onset and row.service in target_services for row in fixture.logs)
     has_trace_evidence = any(
@@ -268,6 +278,14 @@ def _post_over_pre(
 
 def _is_error_or_latency_metric(row: MetricRow) -> bool:
     return _is_error_metric(row) or _is_latency_metric(row)
+
+
+def _is_cpu_metric(row: MetricRow) -> bool:
+    return "cpu" in row.metric
+
+
+def _is_impact_metric(row: MetricRow) -> bool:
+    return _is_error_or_latency_metric(row) or _is_cpu_metric(row)
 
 
 def _is_error_metric(row: MetricRow) -> bool:

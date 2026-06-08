@@ -1,34 +1,19 @@
 {
   "alerts": [
     {
-      "alertname": "CheckoutFailureRate",
+      "alertname": "UserFacingDegradation",
       "annotations": {
-        "summary": "Checkout failure rate 0.10416666666666667 since second 405"
+        "summary": "Degradation detected since second 345"
       },
-      "expr": "sum(rate(traces_span_metrics_calls_total{service_name=\"checkout\",status_code=\"STATUS_CODE_ERROR\"}[3m])) / sum(rate(traces_span_metrics_calls_total{service_name=\"checkout\"}[3m]))",
-      "fingerprint": "45eff36c1b207c68",
+      "expr": "max(sum by (service_name) (rate(traces_span_metrics_calls_total{service_name=~\"frontend|checkout\",status_code=\"STATUS_CODE_ERROR\"}[3m])) / sum by (service_name) (rate(traces_span_metrics_calls_total{service_name=~\"frontend|checkout\"}[3m])))",
+      "fingerprint": "caf9464ad7a93a48",
       "labels": {
-        "signal": "checkout_error_rate",
+        "signal": "degradation",
         "tier": "user_facing"
       },
       "severity": "critical",
-      "starts_at_second": 405,
-      "value": 0.10416666666666667
-    },
-    {
-      "alertname": "CheckoutHighLatency",
-      "annotations": {
-        "summary": "Checkout p95 latency 559.9999999999998ms since second 585"
-      },
-      "expr": "histogram_quantile(0.95, sum(rate(traces_span_metrics_duration_milliseconds_bucket{service_name=\"checkout\"}[3m])) by (le))",
-      "fingerprint": "b2f6781c65e1acf3",
-      "labels": {
-        "signal": "checkout_latency_p95",
-        "tier": "user_facing"
-      },
-      "severity": "warning",
-      "starts_at_second": 585,
-      "value": 559.9999999999998
+      "starts_at_second": 345,
+      "value": 0.05260212646894236
     }
   ],
   "available_signals": [
@@ -43,10 +28,10 @@
   ],
   "scenario_id": "payment_failure_001",
   "source": "opentelemetry-demo",
-  "symptom": "Checkout payment attempts started failing during the recording window.",
+  "symptom": "Checkout attempts started failing during the recording window.",
   "time_unit": "second",
   "window": {
-    "end": 900,
+    "end": 600,
     "start": 0
   }
 }

@@ -1,0 +1,37 @@
+{
+  "alerts": [
+    {
+      "alertname": "UserFacingDegradation",
+      "annotations": {
+        "summary": "Degradation detected since second 330"
+      },
+      "expr": "max(sum by (service_name) (rate(traces_span_metrics_calls_total{service_name=~\"frontend|checkout\",status_code=\"STATUS_CODE_ERROR\"}[3m])) / sum by (service_name) (rate(traces_span_metrics_calls_total{service_name=~\"frontend|checkout\"}[3m])))",
+      "fingerprint": "caf9464ad7a93a48",
+      "labels": {
+        "signal": "degradation",
+        "tier": "user_facing"
+      },
+      "severity": "critical",
+      "starts_at_second": 330,
+      "value": 0.06680378871681417
+    }
+  ],
+  "available_signals": [
+    "metrics",
+    "logs",
+    "traces",
+    "changes"
+  ],
+  "notes": [
+    "Recorded from OpenTelemetry Demo pinned commit b6f5c1ac7328fa57f2681e9c74574f1698847abb.",
+    "Feature flag names and private injection metadata are intentionally redacted."
+  ],
+  "scenario_id": "product_catalog_failure_001",
+  "source": "opentelemetry-demo",
+  "symptom": "Product detail requests failed during the recording window.",
+  "time_unit": "second",
+  "window": {
+    "end": 600,
+    "start": 0
+  }
+}

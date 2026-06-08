@@ -8,6 +8,7 @@ if TYPE_CHECKING:
     from sentinel.fixtures.schemas import DerivedAlert
 
 ALLOWED_ALERTNAMES: set[str] = {
+    "UserFacingDegradation",  # the unified trigger used by the six-scenario set
     "CheckoutFailureRate",
     "FrontendHighErrorRate",
     "FrontendHighLatency",
@@ -18,7 +19,7 @@ ALLOWED_LABEL_KEYS: set[str] = {"tier", "signal", "severity"}
 
 ALLOWED_LABEL_VALUES: dict[str, set[str]] = {
     "tier": {"user_facing"},
-    "signal": {"error_rate", "checkout_error_rate", "latency_p95", "checkout_latency_p95"},
+    "signal": {"degradation", "error_rate", "checkout_error_rate", "latency_p95", "checkout_latency_p95"},
 }
 
 FORBIDDEN_ANNOTATION_SUBSTRINGS: tuple[str, ...] = (

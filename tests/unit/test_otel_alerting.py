@@ -67,15 +67,26 @@ def test_derived_alert_roundtrips():
     assert a.model_dump(mode="json")["starts_at_second"] == 312
 
 
-def test_rules_are_symptom_scoped_and_allowlisted():
+def test_rules_are_unified_and_leak_safe():
     from labs.otel.alerting import load_rules, ALLOWED_ALERTNAMES
     rules = load_rules()
-    assert len(rules) >= 3
-    downstream = ["payment", "cart", "ad", "recommendation", "product-catalog", "kafka", "shipping"]
+    assert len(rules) >= 2
+    # one unified, allow-listed trigger across the whole set
+    assert all(r.alertname == "UserFacingDegradation" for r in rules)
+    assert all(r.alertname in ALLOWED_ALERTNAMES for r in rules)
+    error_rules = [r for r in rules if "status_code" in r.expr]
+    latency_rules = [r for r in rules if "histogram_quantile" in r.expr]
+    cpu_rules = [r for r in rules if "container_cpu_usage" in r.expr]
+    assert error_rules and latency_rules and cpu_rules
+    # error rule scoped to the user-facing edge
+    assert all("frontend|checkout" in r.expr for r in error_rules)
+    # latency rule aggregates over a generic service set (=~ with alternation),
+    # so it never singles out one culprit service
+    assert all(("=~" in r.expr and "|" in r.expr) for r in latency_rules)
+    # async/batch services are excluded (they pin to the histogram ceiling)
     for r in rules:
-        assert r.alertname in ALLOWED_ALERTNAMES
-        assert ('service_name="frontend"' in r.expr) or ('service_name="checkout"' in r.expr)
-        assert not any(f'service_name="{d}"' in r.expr for d in downstream)
+        for batch in ("accounting", "fraud-detection", "load-generator"):
+            assert batch not in r.expr
 
 
 # ---------------------------------------------------------------------------
@@ -152,6 +163,29 @@ def test_derive_is_deterministic():
     assert first[0]["fingerprint"]  # non-empty stable hash
 
 
+def test_evaluator_dedupes_rules_with_same_fingerprint():
+    # The unified trigger is two rules (error + latency) sharing alertname+labels.
+    # When both breach they must collapse to a single fired alert.
+    breach = _series([(300, 0.5), (315, 0.5), (330, 0.5), (345, 0.5), (360, 0.5)])
+    fake = _FakeRange({"err": breach, "lat": breach})
+    rules = [
+        _rule("UserFacingDegradation", "err", signal="degradation"),
+        _rule("UserFacingDegradation", "lat", threshold=120, signal="degradation"),
+    ]
+    alerts = _derive(rules, fake)
+    assert len(alerts) == 1
+    assert alerts[0].alertname == "UserFacingDegradation"
+
+
+def test_evaluator_keeps_distinct_alertnames():
+    # Different alertnames have different fingerprints and must not be collapsed.
+    breach = _series([(300, 0.5), (315, 0.5), (330, 0.5), (345, 0.5), (360, 0.5)])
+    fake = _FakeRange({"a": breach, "b": breach})
+    rules = [_rule("CheckoutFailureRate", "a"), _rule("FrontendHighErrorRate", "b", signal="error_rate")]
+    alerts = _derive(rules, fake)
+    assert len(alerts) == 2
+
+
 # ---------------------------------------------------------------------------
 # _validate_alerts gate tests (Task A6)
 # ---------------------------------------------------------------------------
@@ -210,16 +244,16 @@ def test_compile_prometheus_rules_shape():
     doc = compile_prometheus_rules(rules)
     out_rules = doc["groups"][0]["rules"]
     assert len(out_rules) == len(rules)
-    by_name = {r["alert"]: r for r in out_rules}
-    cfr = by_name["CheckoutFailureRate"]
-    assert cfr["for"] == "60s"
-    assert cfr["labels"]["severity"] == "critical"
-    assert cfr["labels"]["tier"] == "user_facing"
-    assert cfr["expr"].endswith("> 0.1")  # comparison + threshold appended
-    assert cfr["expr"].startswith("(")    # original expr wrapped
-    # annotation value token translated to Prometheus syntax, offline token gone
-    assert "{{ $value }}" in cfr["annotations"]["summary"]
-    assert "{{value}}" not in cfr["annotations"]["summary"]
+    r0 = out_rules[0]
+    assert r0["alert"] == "UserFacingDegradation"
+    assert r0["for"] == "60s"
+    assert r0["labels"]["severity"] == "critical"
+    assert r0["labels"]["tier"] == "user_facing"
+    assert r0["expr"].startswith("(")  # original expr wrapped
+    assert any(tail in r0["expr"] for tail in ("> 0.04", "> 120"))  # comparison + threshold appended
+    # offline onset token translated; no leftover offline tokens
+    assert "{{starts_at}}" not in r0["annotations"]["summary"]
+    assert "{{value}}" not in r0["annotations"]["summary"]
 
 
 def test_dump_prometheus_rules_is_yaml():

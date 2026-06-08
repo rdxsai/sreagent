@@ -1,46 +1,60 @@
+# Unified, leak-safe trigger. Every recorded incident fires exactly one
+# UserFacingDegradation alert (user-facing error OR backend latency). Both
+# contributing rules carry the same alertname and labels, so the evaluator
+# deduplicates them by fingerprint into a single fired alert. This keeps the
+# coverage invariants (E1/E2/E3) trivially satisfied across the scenario set
+# (one alertname, one firing set, shared by all scenarios) and leaks nothing
+# about the root cause: the page says only "something is degraded since second X".
+#
+# Thresholds are drafts pending calibration against a clean baseline under the
+# recording load; they are finalized before any real recording.
 rules:
-  - alertname: CheckoutFailureRate
+  # Max per-service error rate at the user-facing edge (frontend, checkout).
+  # Per-service (not pooled) so a low-volume erroring service like checkout is not
+  # diluted by high-volume browse traffic on frontend. Catches the error faults:
+  # payment_failure, payment_unreachable, product_catalog.
+  - alertname: UserFacingDegradation
     expr: >-
-      sum(rate(traces_span_metrics_calls_total{service_name="checkout",status_code="STATUS_CODE_ERROR"}[3m]))
-      / sum(rate(traces_span_metrics_calls_total{service_name="checkout"}[3m]))
-    threshold: 0.10
+      max(sum by (service_name) (rate(traces_span_metrics_calls_total{service_name=~"frontend|checkout",status_code="STATUS_CODE_ERROR"}[3m]))
+      / sum by (service_name) (rate(traces_span_metrics_calls_total{service_name=~"frontend|checkout"}[3m])))
+    threshold: 0.04
     comparison: ">"
     for_seconds: 60
     severity: critical
-    labels: {tier: user_facing, signal: checkout_error_rate}
+    labels: {tier: user_facing, signal: degradation}
     annotation_templates:
-      summary: "Checkout failure rate {{value}} since second {{starts_at}}"
+      summary: "Degradation detected since second {{starts_at}}"
 
-  - alertname: FrontendHighErrorRate
+  # Max p95 over the synchronous request-path services (per-service p95, then
+  # max, so a low-volume slow service is not diluted). Catches the latency
+  # faults: recommendation_cache, adHighCpu, adManualGc. Excludes the async/batch
+  # services (accounting, fraud-detection, load-generator, email), which pin to
+  # the 15000ms histogram ceiling at baseline, and checkout, whose high baseline
+  # would eat the margin (payment_failure is covered by the error rule).
+  - alertname: UserFacingDegradation
     expr: >-
-      sum(rate(traces_span_metrics_calls_total{service_name="frontend",status_code="STATUS_CODE_ERROR"}[3m]))
-      / sum(rate(traces_span_metrics_calls_total{service_name="frontend"}[3m]))
-    threshold: 0.05
+      max(histogram_quantile(0.95, sum by (le, service_name) (rate(traces_span_metrics_duration_milliseconds_bucket{service_name=~"frontend|cart|currency|product-catalog|recommendation|ad|shipping|quote|payment",span_kind="SPAN_KIND_SERVER"}[3m]))))
+    threshold: 120
     comparison: ">"
     for_seconds: 60
     severity: critical
-    labels: {tier: user_facing, signal: error_rate}
+    labels: {tier: user_facing, signal: degradation}
     annotation_templates:
-      summary: "User-facing error rate {{value}} since second {{starts_at}}"
+      summary: "Degradation detected since second {{starts_at}}"
 
-  - alertname: FrontendHighLatency
+  # Max CPU cores used by an application service, as rate of the cpu-usage counter
+  # (the container_cpu_utilization_ratio gauge is unreliable on this host). Catches
+  # CPU-saturation faults like ad_high_cpu, where a service pegs cores without its
+  # request latency rising. Application containers only (infra and async/batch
+  # excluded), and the threshold sits well above the busiest baseline service
+  # (~0.43 cores) so nothing false-fires at baseline.
+  - alertname: UserFacingDegradation
     expr: >-
-      histogram_quantile(0.95, sum(rate(traces_span_metrics_duration_milliseconds_bucket{service_name="frontend"}[3m])) by (le))
-    threshold: 200
+      max(rate(container_cpu_usage_nanoseconds_total{container_name=~"frontend|cart|currency|product-catalog|recommendation|ad|shipping|quote|payment|checkout|email"}[3m]) / 1000000000)
+    threshold: 2.0
     comparison: ">"
     for_seconds: 60
-    severity: warning
-    labels: {tier: user_facing, signal: latency_p95}
+    severity: critical
+    labels: {tier: user_facing, signal: degradation}
     annotation_templates:
-      summary: "User-facing p95 latency {{value}}ms since second {{starts_at}}"
-
-  - alertname: CheckoutHighLatency
-    expr: >-
-      histogram_quantile(0.95, sum(rate(traces_span_metrics_duration_milliseconds_bucket{service_name="checkout"}[3m])) by (le))
-    threshold: 250
-    comparison: ">"
-    for_seconds: 60
-    severity: warning
-    labels: {tier: user_facing, signal: checkout_latency_p95}
-    annotation_templates:
-      summary: "Checkout p95 latency {{value}}ms since second {{starts_at}}"
+      summary: "Degradation detected since second {{starts_at}}"
