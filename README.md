@@ -1,19 +1,73 @@
 # Sentinel
 
-Sentinel is a production-shaped, autonomous SRE incident-response agent.
-Given an incident symptom, the agent will inspect telemetry, form and test
-hypotheses, trace root cause, and emit a structured incident report.
+An autonomous SRE incident-response agent. Given a firing alert, it investigates recorded microservice telemetry, traces the symptom to its root cause, and emits a structured incident report. It resolves the six recorded incidents and ships with 181 unit and integration tests.
 
-v1 uses OpenTelemetry Demo as a recorded incident lab. A scenario controller
-enables one known built-in failure flag under steady workload, records metrics,
-logs, traces, topology, and change events, then writes replayable public
-fixtures plus private eval truth. The agent and tools receive only public
-fixtures. The eval harness is the only layer that reads private truth.
+Sentinel runs against a sealed, replayable telemetry environment built from the OpenTelemetry Demo: a known fault is injected into a service, the real traces, metrics, and logs it produces are captured, and the result is written as a fixture the agent investigates. The agent reads only the public telemetry; the ground truth is held separately and used only to grade.
 
-The three-layer seal is the core benchmark rule:
+## What it does
 
-- scenario control records private injection metadata
-- public fixtures contain only observable, redacted telemetry
-- eval truth grades root-cause accuracy and is never passed to tools
+- A manager agent triages an incident (it builds the dependency graph, finds onset, and localizes the fault), then delegates to isolated investigator subagents that each deep-dive one candidate service and return a typed finding, which the manager reconciles into a root-cause report.
+- 50 tools across ten namespaces (traces, metrics, logs, changes, correlate, topology, hypothesis, investigate, report, runbook), exposed through a decorator and schema registry with model-driven selection and typed, composable Pydantic inputs and outputs.
+- Production scaffolding: retries with backoff, rate limiting, typed errors, structured logging, and a deterministic hooks layer (a leak-safety seal, a tool-call budget, a report gate, finding validation).
+- An evaluation harness that grades each run against sealed ground truth and reports pass@k across repeats.
+- A live web demo that streams the agent's reasoning, tool calls, and nested subagent investigations token by token.
 
-See `docs/open-telemetryspec.md` for the v1 fixture-lab contract.
+## Quickstart
+
+Prerequisites: Python 3.11+, Node 18+ (for the demo frontend), and an Anthropic API key.
+
+Install:
+
+```
+python -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
+echo "ANTHROPIC_API_KEY=sk-..." > .env
+```
+
+Run the tests:
+
+```
+scripts/test                      # or: python -m pytest tests/
+```
+
+Run the evaluation (the agent investigates the recorded incidents and is graded against ground truth):
+
+```
+scripts/eval                      # all six incidents
+scripts/eval payment_failure_001  # one incident
+SENTINEL_EVAL_REPEATS=3 scripts/eval   # reliability: pass@k over repeats
+```
+
+Run the live demo:
+
+```
+cd frontend && npm install && npm run build && cd ..
+scripts/server                    # serves the app + API at http://localhost:8000
+```
+
+Open http://localhost:8000, pick an incident, and watch the agent investigate live. For frontend development with hot reload, run `scripts/server` and, in a second terminal, `npm run dev` inside `frontend/` (Vite proxies the API).
+
+## How it works
+
+The recording pipeline (`labs/otel`) runs the OpenTelemetry Demo at a pinned commit under self-driven load, injects one feature flag at a known onset, captures telemetry from Prometheus (metrics), Jaeger (traces), and OpenSearch (logs), runs an alerting layer that fires a single UserFacingDegradation alert, and writes a sealed fixture: `public/` for the agent, `eval_only/` for the grader. The six recorded incidents live in `fixtures/`.
+
+The agent runtime (`sentinel/agent`) is plain async Python: a shared hooked loop drives both the manager and the investigator subagents. Running the agent and the demo needs only the committed public fixtures; the grader additionally reads the eval-only ground truth, which is kept out of version control by the seal; only re-recording new fixtures needs the live demo.
+
+## Project layout
+
+```
+sentinel/agent/      manager + investigator loop, hooks, events, runner
+sentinel/tools/      the 50 tools, the fixture store, typed I/O models
+sentinel/registry/   the decorator and schema tool registry
+sentinel/api/        FastAPI app: the /demo SSE stream and the alert webhook
+sentinel/fixtures/   fixture schemas and replay
+sentinel_tool_eval/  the evaluation harness and grader
+labs/otel/           the OpenTelemetry recording pipeline
+fixtures/            the six sealed incident fixtures (public telemetry)
+frontend/            the React and Vite demo UI
+tests/               unit and integration tests
+```
+
+## Design
+
+See [MEMO.md](MEMO.md) for what was built, what was cut, what more time would address, and the design decisions and the alternatives they were chosen over.

@@ -80,3 +80,12 @@ Thumbs.db
 
 # Frontend deps
 node_modules/
+
+# Working and design docs (the repo keeps MEMO.md, README.md, CLAUDE.md, .claude/skills)
+/AGENTS.md
+/DESIGN.md
+/handoff.md
+/subagentdesgin.md
+/docs/
+/deploy/alertmanager/README.md
+/labs/otel/README.md
