@@ -104,7 +104,7 @@ def run_manager(
     def _investigate_service(service: str) -> dict[str, Any]:
         log.info("spawn_investigator", service=service)
         if events is not None:
-            events.emit("subagent_spawn", agent="manager", service=service)
+            events.emit("subagent_spawn", agent="manager", agent_id=f"investigator:{service}", service=service, kind="service")
         finding, loop_result = run_investigator(
             client, service, store,
             model=worker_model, effort=effort, max_iters=worker_max_iters,
@@ -120,10 +120,10 @@ def run_manager(
                 data["_validation"] = verdict.feedback
             findings.append(data)
         if events is not None:
-            events.emit("finding", agent="manager", service=service, is_origin=finding.is_origin,
-                        fault_type=finding.fault_type, confidence=finding.confidence,
-                        suspect_change_id=finding.suspect_change_id)
-            events.emit("subagent_done", agent="manager", service=service)
+            events.emit("finding", agent="manager", agent_id=f"investigator:{service}", service=service,
+                        is_origin=finding.is_origin, fault_type=finding.fault_type,
+                        confidence=finding.confidence, suspect_change_id=finding.suspect_change_id)
+            events.emit("subagent_done", agent="manager", agent_id=f"investigator:{service}", service=service)
         return finding.model_dump(mode="json")
 
     def dispatch(name: str, tool_input: dict[str, Any]) -> dict[str, Any]:
@@ -136,7 +136,9 @@ def run_manager(
             return {"findings": results}
         if name == "investigate_change":
             if events is not None:
-                events.emit("subagent_spawn", agent="manager", service=f"change:{tool_input['change_id']}")
+                cid = tool_input["change_id"]
+                events.emit("subagent_spawn", agent="manager", agent_id=f"change:{cid}",
+                            service=f"change {cid}", kind="change", change_id=cid)
             verdict, loop_result = run_change_investigator(
                 client, tool_input["change_id"], tool_input["service"],
                 tool_input.get("incident_summary", "the observed incident"), store,
