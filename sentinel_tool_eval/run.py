@@ -8,6 +8,7 @@ Usage:
 from __future__ import annotations
 
 import json
+import os
 import sys
 from collections import Counter
 from pathlib import Path
@@ -15,6 +16,7 @@ from pathlib import Path
 import anthropic
 
 import sentinel.tools  # noqa: F401  (populate the registry)
+from sentinel_tool_eval.aggregate import aggregate, format_report
 from sentinel_tool_eval.env import load_api_key
 from sentinel_tool_eval.harness import TaskResult, run_task
 from sentinel_tool_eval.tasks import SCENARIOS
@@ -58,6 +60,38 @@ def _print_task(r: TaskResult) -> None:
         print(f"  feedback:\n    " + r.feedback.replace("\n", "\n    "))
 
 
+def _result_json(result: TaskResult) -> dict:
+    return {
+        "scenario_id": result.scenario_id,
+        "grade": result.grade,
+        "report": result.report,
+        "calls": result.calls,
+        "worker_calls": result.worker_calls,
+        "subagents": result.subagents,
+        "findings": result.findings,
+        "tool_errors": result.tool_errors,
+        "iterations": result.iterations,
+        "stop": result.stop,
+        "usage": result.usage,
+        "worker_usage": result.worker_usage,
+        "feedback": result.feedback,
+        "denials": result.denials,
+    }
+
+
+def _run_record(result: TaskResult) -> dict:
+    g = result.grade
+    return {
+        "correct": g.get("correct"),
+        "location_correct": g.get("location_correct"),
+        "culprit_correct": g.get("culprit_correct"),
+        "decoys_ruled_out": g.get("decoys_ruled_out"),
+        "type_match": g.get("type_match"),
+        "cost": result.est_cost_usd,
+        "calls": result.call_count,
+    }
+
+
 def main() -> int:
     if not load_api_key():
         print("ANTHROPIC_API_KEY not found in environment or .env", file=sys.stderr)
@@ -69,49 +103,50 @@ def main() -> int:
         print(f"no matching scenarios; known: {[s.id for s in SCENARIOS]}", file=sys.stderr)
         return 2
 
+    repeats = int(os.environ.get("SENTINEL_EVAL_REPEATS", "1"))
     client = anthropic.Anthropic()
     RESULTS_DIR.mkdir(exist_ok=True)
 
-    results: list[TaskResult] = []
+    all_results: list[TaskResult] = []
+    runs_by_scenario: dict[str, list[dict]] = {}
     for scenario in scenarios:
-        print(f"\nrunning {scenario.id} ...", flush=True)
-        result = run_task(client, scenario)
-        results.append(result)
-        _print_task(result)
-        (RESULTS_DIR / f"{scenario.id}.json").write_text(
+        runs_by_scenario[scenario.id] = []
+        for i in range(repeats):
+            label = scenario.id + (f" (run {i + 1}/{repeats})" if repeats > 1 else "")
+            print(f"\nrunning {label} ...", flush=True)
+            result = run_task(client, scenario)
+            all_results.append(result)
+            _print_task(result)
+            suffix = f".run{i + 1}" if repeats > 1 else ""
+            (RESULTS_DIR / f"{scenario.id}{suffix}.json").write_text(
+                json.dumps(_result_json(result), indent=2), encoding="utf-8"
+            )
+            runs_by_scenario[scenario.id].append(_run_record(result))
+
+    correct = sum(1 for r in all_results if r.grade.get("correct"))
+    total_cost = sum(r.est_cost_usd for r in all_results)
+    print("\n" + "=" * 48)
+    print(f"accuracy: {correct}/{len(all_results)} correct ({len(scenarios)} scenarios x {repeats} run(s))")
+    print(f"total est_cost=${total_cost:.4f}")
+
+    if repeats > 1:
+        report = aggregate(runs_by_scenario)
+        print(format_report(report))
+        (RESULTS_DIR / "_reliability.json").write_text(
             json.dumps(
                 {
-                    "scenario_id": result.scenario_id,
-                    "grade": result.grade,
-                    "report": result.report,
-                    "calls": result.calls,
-                    "worker_calls": result.worker_calls,
-                    "subagents": result.subagents,
-                    "findings": result.findings,
-                    "tool_errors": result.tool_errors,
-                    "iterations": result.iterations,
-                    "stop": result.stop,
-                    "usage": result.usage,
-                    "worker_usage": result.worker_usage,
-                    "feedback": result.feedback,
-                    "denials": result.denials,
+                    "per_scenario": [vars(s) for s in report.per_scenario],
+                    "micro_pass_rate": report.micro_pass_rate,
+                    "pass_at_k": report.pass_at_k,
+                    "pass_hat_k": report.pass_hat_k,
+                    "dimension_rates": report.dimension_rates,
+                    "mean_cost": report.mean_cost,
+                    "mean_calls": report.mean_calls,
                 },
                 indent=2,
             ),
             encoding="utf-8",
         )
-
-    correct = sum(1 for r in results if r.grade.get("correct"))
-    total_cost = sum(r.est_cost_usd for r in results)
-    total_out = sum(r.usage.get("output", 0) for r in results)
-    total_in = sum(r.usage.get("input", 0) for r in results)
-    total_cache_read = sum(r.usage.get("cache_read", 0) for r in results)
-    print("\n" + "=" * 48)
-    print(f"accuracy: {correct}/{len(results)} correct")
-    print(
-        f"tokens total: input={total_in} output={total_out} cache_read={total_cache_read} "
-        f"est_cost=${total_cost:.4f}"
-    )
     return 0
 
 
