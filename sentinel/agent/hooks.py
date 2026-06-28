@@ -160,6 +160,31 @@ class ReportGate(Hook):
         return None
 
 
+class DecoyCompletenessGate(Hook):
+    """Terminal completeness: deny a final report that leaves any known non-culprit
+    change unaccounted. All changes are public, so requiring the model to rule out
+    every decoy leaks nothing; it only enforces a thorough conclusion."""
+
+    name = "decoy_completeness_gate"
+
+    def pre_tool_use(self, call: ToolCall, ctx: RunContext) -> ToolDecision | None:
+        if call.name != "report_root_cause" or ctx.store is None:
+            return None
+        known = {c.id for c in ctx.store.list_changes()}
+        culprit = call.input.get("culprit_change_id")
+        ruled_out = set(call.input.get("ruled_out_change_ids") or [])
+        missing = sorted(known - {culprit} - ruled_out)
+        if missing:
+            return ToolDecision(
+                action="deny",
+                reason=(
+                    "report incomplete: account for every known change. Missing from "
+                    f"ruled_out_change_ids: {', '.join(missing)}. Rule them out and resubmit."
+                ),
+            )
+        return None
+
+
 class Observer(Hook):
     """Observability: record every tool call (which agent, tool, error) for the
     trace and the cookbook metrics."""
