@@ -34,6 +34,7 @@ DEFAULT_OUTPUT_BUDGET = int(os.environ.get("SENTINEL_EVAL_OUTPUT_BUDGET", "80000
 DEFAULT_MAX_TOKENS = int(os.environ.get("SENTINEL_EVAL_MAX_TOKENS", "6000"))
 DEFAULT_MANAGER_MAX_TOOL_CALLS = int(os.environ.get("SENTINEL_EVAL_MAX_TOOL_CALLS", "40"))
 DEFAULT_WORKER_MAX_TOOL_CALLS = int(os.environ.get("SENTINEL_EVAL_WORKER_MAX_TOOL_CALLS", "20"))
+DEFAULT_TOOL_MODE = os.environ.get("SENTINEL_EVAL_TOOL_MODE", os.environ.get("SENTINEL_TOOL_MODE", "native"))
 
 # per-1M-token pricing
 _OPUS = {"input": 5.0, "output": 25.0, "cache_read": 0.5, "cache_write": 6.25}
@@ -118,7 +119,7 @@ def run_task(
     manager_model: str = DEFAULT_MODEL,
     worker_model: str = DEFAULT_WORKER_MODEL,
     effort: str = DEFAULT_EFFORT,
-    tool_mode: str = "native",
+    tool_mode: str = DEFAULT_TOOL_MODE,
 ) -> TaskResult:
     store = FixtureStore(scenario.public_dir)
     truth = load_truth(scenario.truth_path)
