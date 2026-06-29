@@ -46,6 +46,9 @@ def _print_task(r: TaskResult) -> None:
     print(f"  manager_calls={dict(Counter(r.calls))}")
     if r.worker_calls:
         print(f"  worker_calls={dict(Counter(r.worker_calls))}")
+    if r.internal_calls:
+        print(f"  internal_tool_calls={r.internal_call_count} "
+              f"internal_calls={dict(Counter(r.internal_calls))}")
     if r.findings:
         for f in r.findings:
             print(f"    finding: {f.get('service')} is_origin={f.get('is_origin')} "
@@ -67,6 +70,7 @@ def _result_json(result: TaskResult) -> dict:
         "report": result.report,
         "calls": result.calls,
         "worker_calls": result.worker_calls,
+        "internal_calls": result.internal_calls,
         "subagents": result.subagents,
         "findings": result.findings,
         "tool_errors": result.tool_errors,

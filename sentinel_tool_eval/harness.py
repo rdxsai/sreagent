@@ -9,6 +9,7 @@ usage accounted separately for the Opus manager and the Sonnet workers.
 
 from __future__ import annotations
 
+import json
 import os
 from dataclasses import dataclass, field
 from typing import Any
@@ -16,6 +17,7 @@ from typing import Any
 import anthropic
 import structlog
 
+from sentinel.agent.codeagent import code_agent_tools_schema, run_code_agent
 from sentinel.agent.manager import run_manager
 from sentinel.tools.store import FixtureStore
 from sentinel_tool_eval.grader import grade, load_truth
@@ -52,8 +54,14 @@ class TaskResult:
     scenario_id: str
     report: dict[str, Any] | None
     grade: dict[str, Any]
+    tool_mode: str = "native"
+    manager_exposed_tools: int = 0
+    manager_schema_chars: int = 0
+    worker_exposed_tools: int = 0
+    worker_schema_chars: int = 0
     calls: list[str] = field(default_factory=list)
     worker_calls: list[str] = field(default_factory=list)
+    internal_calls: list[str] = field(default_factory=list)
     tool_errors: int = 0
     iterations: int = 0
     stop: str = ""
@@ -63,14 +71,44 @@ class TaskResult:
     denials: int = 0
     subagents: int = 0
     findings: list[dict[str, Any]] = field(default_factory=list)
+    trace: list[dict[str, Any]] = field(default_factory=list)
 
     @property
     def call_count(self) -> int:
         return len(self.calls) + len(self.worker_calls)
 
     @property
+    def internal_call_count(self) -> int:
+        return len(self.internal_calls)
+
+    @property
     def est_cost_usd(self) -> float:
         return _cost(self.usage, _OPUS) + _cost(self.worker_usage, _SONNET)
+
+
+def _build_code_result(scenario_id, result, grade_dict) -> TaskResult:
+    schema = code_agent_tools_schema()
+    loop = result.loop
+    return TaskResult(
+        scenario_id=scenario_id,
+        report=result.report,
+        grade=grade_dict,
+        tool_mode="code",
+        manager_exposed_tools=len(schema),
+        manager_schema_chars=len(json.dumps(schema)),
+        worker_exposed_tools=0,
+        worker_schema_chars=0,
+        calls=loop.calls,
+        internal_calls=result.internal_calls,
+        trace=result.internal_events,
+        tool_errors=loop.tool_errors,
+        iterations=loop.iterations,
+        stop=loop.stop,
+        usage=loop.usage,
+        feedback=loop.feedback,
+        denials=loop.denials,
+        subagents=0,
+    )
 
 
 def run_task(
@@ -80,9 +118,20 @@ def run_task(
     manager_model: str = DEFAULT_MODEL,
     worker_model: str = DEFAULT_WORKER_MODEL,
     effort: str = DEFAULT_EFFORT,
+    tool_mode: str = "native",
 ) -> TaskResult:
     store = FixtureStore(scenario.public_dir)
     truth = load_truth(scenario.truth_path)
+    if tool_mode == "code":
+        backend = os.environ.get("SENTINEL_CODE_BACKEND", "docker")
+        result = run_code_agent(
+            client, store, build_task_prompt(scenario),
+            model=manager_model, effort=effort,
+            max_iters=DEFAULT_MANAGER_MAX_ITERS, max_tokens=DEFAULT_MAX_TOKENS,
+            output_budget=DEFAULT_OUTPUT_BUDGET, max_tool_calls=DEFAULT_MANAGER_MAX_TOOL_CALLS,
+            executor_backend=backend,
+        )
+        return _build_code_result(scenario.id, result, grade(result.report, truth))
     result = run_manager(
         client,
         store,
