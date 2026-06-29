@@ -37,3 +37,28 @@ def recv_msg(sock: socket.socket) -> dict[str, Any] | None:
     if body is None:
         return None
     return json.loads(body.decode("utf-8"))
+
+
+class PipeChannel:
+    """Adapt a (reader, writer) byte-stream pair to the socket interface
+    send_msg/recv_msg expect (.sendall / .recv).
+
+    Used for the stdio transport: a host AF_UNIX socket bind-mounted into a Linux
+    container cannot be connected to on macOS Docker Desktop, so the Docker backend
+    frames the same protocol over the container's stdin/stdout pipes instead.
+    """
+
+    def __init__(self, reader: Any, writer: Any) -> None:
+        self._reader = reader
+        self._writer = writer
+
+    def sendall(self, data: bytes) -> None:
+        view = memoryview(data)
+        while view:
+            written = self._writer.write(view)
+            if written:  # raw streams may write fewer bytes than offered
+                view = view[written:]
+        self._writer.flush()
+
+    def recv(self, n: int) -> bytes:
+        return self._reader.read(n) or b""
