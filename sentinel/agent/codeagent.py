@@ -26,7 +26,6 @@ from sentinel.agent.hooks import (
     SealGuard,
 )
 from sentinel.agent.loop import LoopResult, run_loop
-from sentinel.observability import get_logger
 from sentinel.registry import REGISTRY
 from sentinel.sandbox.client_gen import (
     code_tool_specs,
@@ -38,8 +37,6 @@ from sentinel.sandbox.presentation import present
 from sentinel.sandbox.rpc import RpcHandler
 from sentinel.tools.models import RootCauseReport
 from sentinel.tools.store import TelemetryStore
-
-log = get_logger("sentinel.codeagent")
 
 RUN_CODE_TOOL = "run_code"
 
@@ -129,8 +126,8 @@ def run_code_agent(
             return {"output": present(res.stdout, res.error, res.duration_ms)}
         return REGISTRY.dispatch(name, tool_input, store)
 
-    executor.start()
     try:
+        executor.start()
         loop = run_loop(
             client,
             model=model,

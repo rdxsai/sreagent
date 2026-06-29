@@ -193,7 +193,20 @@ class DockerExecutor(_KernelExecutor):
             cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, bufsize=0
         )
         self._channel = PipeChannel(self._proc.stdout, self._proc.stdin)
-        self._handshake()
+        self._timed_out = False
+        watchdog = threading.Timer(self.timeout_s, self._on_timeout)
+        watchdog.start()
+        try:
+            self._handshake()
+        except Exception:
+            watchdog.cancel()
+            if self._timed_out:
+                raise RuntimeError(
+                    f"sandbox failed to start within {self.timeout_s:.0f}s; "
+                    "ensure the image is pulled and the docker daemon is healthy"
+                ) from None
+            raise
+        watchdog.cancel()
 
     def run(self, code: str) -> ExecResult:
         assert self._channel is not None, "start() not called"

@@ -1,12 +1,8 @@
-from pathlib import Path
-
 import sentinel.tools  # noqa: F401
-from sentinel.tools.store import FixtureStore
 from sentinel_tool_eval.harness import _build_code_result  # added in Step 3
 
 
 def test_code_result_carries_internal_calls_and_two_tools():
-    store = FixtureStore(Path("fixtures/ad_high_cpu_001/public"))
     # a stand-in CodeAgentResult-like object
     class _Loop:
         calls = ["run_code", "report_root_cause"]
