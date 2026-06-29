@@ -68,6 +68,19 @@ frontend/            the React and Vite demo UI
 tests/               unit and integration tests
 ```
 
+## Tool modes
+
+Sentinel exposes its SRE tools two ways, switchable with `SENTINEL_TOOL_MODE`:
+
+- `native` (default): a two-tier manager/investigator agent picks among the typed
+  tools with function calling.
+- `code`: a single agent writes Python against a generated client, run in an
+  isolated Docker sandbox (`--network none`); proxy calls cross back to the host,
+  which runs the hooks and the real tools. Set `SENTINEL_CODE_BACKEND=local` to run
+  the sandbox as a subprocess instead of Docker (tests and Docker-less dev).
+
+The eval compares the two arms: `SENTINEL_EVAL_TOOL_MODE=native|code`.
+
 ## Design
 
 See [MEMO.md](MEMO.md) for what was built, what was cut, what more time would address, and the design decisions and the alternatives they were chosen over.

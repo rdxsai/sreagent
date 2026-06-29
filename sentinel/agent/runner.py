@@ -32,6 +32,8 @@ def _defaults() -> dict[str, object]:
         "output_budget": int(os.environ.get("SENTINEL_OUTPUT_BUDGET", "80000")),
         "manager_max_tool_calls": int(os.environ.get("SENTINEL_MANAGER_MAX_TOOL_CALLS", "40")),
         "worker_max_tool_calls": int(os.environ.get("SENTINEL_WORKER_MAX_TOOL_CALLS", "20")),
+        "tool_mode": os.environ.get("SENTINEL_TOOL_MODE", "native"),
+        "code_backend": os.environ.get("SENTINEL_CODE_BACKEND", "docker"),
     }
 
 
@@ -51,6 +53,23 @@ def investigate(
     events: EventSink | None = None,
 ) -> ManagerResult:
     log.info("investigation_start", symptom=symptom, alerts=alertnames or [])
-    result = run_manager(client, store, build_incident_prompt(symptom, alertnames), events=events, **_defaults())
+    defaults = _defaults()
+    if defaults["tool_mode"] == "code":
+        from sentinel.agent.codeagent import run_code_agent
+
+        code_result = run_code_agent(
+            client, store, build_incident_prompt(symptom, alertnames),
+            model=defaults["manager_model"], effort=defaults["effort"],
+            max_iters=defaults["manager_max_iters"], max_tokens=defaults["max_tokens"],
+            output_budget=defaults["output_budget"], max_tool_calls=defaults["manager_max_tool_calls"],
+            executor_backend=defaults["code_backend"], events=events,
+        )
+        result = ManagerResult(report=code_result.report, manager_loop=code_result.loop,
+                               trace=code_result.internal_events)
+        log.info("investigation_complete", subagents=0, reported=bool(result.report))
+        return result
+    _manager_skip = {"code_backend", "tool_mode"}
+    result = run_manager(client, store, build_incident_prompt(symptom, alertnames),
+                         events=events, **{k: v for k, v in defaults.items() if k not in _manager_skip})
     log.info("investigation_complete", subagents=result.subagents, reported=bool(result.report))
     return result
