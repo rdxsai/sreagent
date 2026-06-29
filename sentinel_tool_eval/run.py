@@ -121,8 +121,9 @@ def main() -> int:
             result = run_task(client, scenario)
             all_results.append(result)
             _print_task(result)
+            mode_suffix = "" if result.tool_mode == "native" else f".{result.tool_mode}"
             suffix = f".run{i + 1}" if repeats > 1 else ""
-            (RESULTS_DIR / f"{scenario.id}{suffix}.json").write_text(
+            (RESULTS_DIR / f"{scenario.id}{mode_suffix}{suffix}.json").write_text(
                 json.dumps(_result_json(result), indent=2), encoding="utf-8"
             )
             runs_by_scenario[scenario.id].append(_run_record(result))
