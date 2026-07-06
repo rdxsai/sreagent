@@ -1,0 +1,43 @@
+{
+  "trace": [],
+  "findings": [
+    {
+      "service": "frontend",
+      "is_origin": true,
+      "fault_type": "error",
+      "own_server_errors": 1,
+      "shifted_signals": [],
+      "suspect_change_id": "chg_10001",
+      "confidence": 0.88,
+      "evidence": [
+        "First error span at second 319 originates on frontend (server span, trace 46d9dd5835ec949dead03d2ac5ae7585)",
+        "frontend has 1 own server error span confirmed by traces_service_summary and traces_error_summary",
+        "Trace span tree shows frontend's internal route 'executing api route (pages) /api/data' erroring, with a failing client call to oteldemo.AdService/GetAds beneath it",
+        "correlate_attribute_fault classifies this as a SERVICE fault on frontend (confidence 0.9): frontend server spans error",
+        "hypothesis_gather_evidence supports frontend as origin (confidence 0.9), nearest change chg_10001",
+        "chg_10001 is a deploy on frontend at second 225 (94s before onset) that changed the ad_refresh interval \u2014 directly touching the AdService call path that subsequently failed",
+        "No other service has elevated error rates post-onset; fault is isolated to frontend"
+      ]
+    },
+    {
+      "service": "ad",
+      "is_origin": true,
+      "fault_type": "latency",
+      "own_server_errors": 0,
+      "shifted_signals": [
+        "latency_p95_ms"
+      ],
+      "suspect_change_id": "chg_10003",
+      "confidence": 0.92,
+      "evidence": [
+        "ad p95 latency jumped from ~2.5ms (baseline) to ~524ms post-onset \u2014 a 20,800% increase (208x baseline)",
+        "traces_service_summary confirms 0 server error spans, ruling out an error fault; this is a pure latency fault",
+        "Change chg_10003 deployed 19 seconds before onset (t=300): 'ad JVM garbage collection settings changed' touching jvm_gc and heap_settings",
+        "JVM GC tuning changes directly explain latency spikes (GC stop-the-world pauses) without triggering error spans",
+        "No CPU saturation detected, consistent with GC pausing threads rather than saturating cores",
+        "hypothesis_gather_evidence confirmed supported=true for the ad service latency hypothesis with chg_10003 as the suspect change",
+        "traces_latency_origin shows ad has own self-latency p95 of 1091ms, placing it as the second-highest latency contributor behind frontend"
+      ]
+    }
+  ]
+}

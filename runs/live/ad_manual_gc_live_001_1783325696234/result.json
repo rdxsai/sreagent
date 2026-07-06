@@ -1,0 +1,199 @@
+{
+  "scenario_id": "ad_manual_gc_live_001",
+  "grade": {
+    "correct": true,
+    "location_correct": true,
+    "culprit_correct": true,
+    "decoys_ruled_out": true,
+    "type_match": false,
+    "reported": {
+      "root_cause": {
+        "kind": "service",
+        "type": "latency",
+        "service": "ad",
+        "caller": null,
+        "callee": null
+      },
+      "culprit_change_id": "chg_10003",
+      "ruled_out_change_ids": [
+        "chg_9004",
+        "chg_10001",
+        "chg_10002",
+        "chg_10004"
+      ]
+    },
+    "truth": {
+      "root_cause": {
+        "kind": "service",
+        "type": "gc_pause",
+        "service": "ad"
+      },
+      "culprit_change_id": "chg_10003",
+      "decoy_change_ids": [
+        "chg_10001",
+        "chg_10002",
+        "chg_10004"
+      ]
+    }
+  },
+  "report": {
+    "root_cause": {
+      "kind": "service",
+      "type": "latency",
+      "service": "ad",
+      "caller": null,
+      "callee": null
+    },
+    "culprit_change_id": "chg_10003",
+    "ruled_out_change_ids": [
+      "chg_9004",
+      "chg_10001",
+      "chg_10002",
+      "chg_10004"
+    ],
+    "evidence": [
+      "ad is the latency origin: self-time p95 983ms, max 1091ms post-onset",
+      "ad p95 latency rose from 2.50ms to 524.41ms after onset (208x increase)",
+      "No errors or CPU saturation \u2014 pure latency fault with intermittent stalls consistent with GC pauses",
+      "chg_10003 (ad JVM GC settings changed) deployed at t=300, 19s before onset at t=319, touching jvm_gc and heap_settings",
+      "frontend\u2192ad call path shows ad's own processing time dominates latency, not downstream dependencies",
+      "chg_10004 ruled out: deployed at t=355, after onset",
+      "chg_9004, chg_10001, chg_10002 ruled out: different services (recommendation, frontend, quote), not the latency origin"
+    ],
+    "timeline": [
+      {
+        "second": 0,
+        "kind": "change",
+        "detail": "chg_9004 on recommendation: recommendation batch size changed"
+      },
+      {
+        "second": 225,
+        "kind": "change",
+        "detail": "chg_10001 on frontend: frontend ad refresh interval changed"
+      },
+      {
+        "second": 265,
+        "kind": "change",
+        "detail": "chg_10002 on quote: quote service worker count adjusted"
+      },
+      {
+        "second": 300,
+        "kind": "change",
+        "detail": "chg_10003 on ad: ad JVM garbage collection settings changed"
+      },
+      {
+        "second": 319,
+        "kind": "onset",
+        "detail": "first error span observed on frontend (ad stall timeout)"
+      },
+      {
+        "second": 355,
+        "kind": "change",
+        "detail": "chg_10004 on cart: cart cache eviction tuned"
+      }
+    ]
+  },
+  "calls": [
+    "traces_build_topology",
+    "metrics_summary_all",
+    "traces_first_error_time",
+    "metrics_resource_saturation",
+    "traces_latency_origin",
+    "metrics_top_movers",
+    "correlate_onset_consensus",
+    "investigate_parallel",
+    "changes_rank_culprit",
+    "changes_search",
+    "report_build_evidence",
+    "report_self_check",
+    "report_root_cause"
+  ],
+  "worker_calls": [
+    "traces_first_error_time",
+    "metrics_summary_all",
+    "correlate_onset_consensus",
+    "traces_error_origin",
+    "correlate_signals",
+    "traces_error_summary",
+    "traces_span_tree",
+    "changes_rank_culprit",
+    "changes_search",
+    "traces_service_summary",
+    "hypothesis_gather_evidence",
+    "correlate_attribute_fault",
+    "topology_locate_origin",
+    "report_finding",
+    "traces_first_error_time",
+    "metrics_summary_all",
+    "correlate_onset_consensus",
+    "correlate_signals",
+    "traces_error_origin",
+    "traces_service_summary",
+    "changes_rank_culprit",
+    "traces_latency_origin",
+    "changes_search",
+    "hypothesis_gather_evidence",
+    "metrics_compare_baseline",
+    "metrics_resource_saturation",
+    "report_finding"
+  ],
+  "internal_calls": [],
+  "subagents": 2,
+  "findings": [
+    {
+      "service": "frontend",
+      "is_origin": true,
+      "fault_type": "error",
+      "own_server_errors": 1,
+      "shifted_signals": [],
+      "suspect_change_id": "chg_10001",
+      "confidence": 0.88,
+      "evidence": [
+        "First error span at second 319 originates on frontend (server span, trace 46d9dd5835ec949dead03d2ac5ae7585)",
+        "frontend has 1 own server error span confirmed by traces_service_summary and traces_error_summary",
+        "Trace span tree shows frontend's internal route 'executing api route (pages) /api/data' erroring, with a failing client call to oteldemo.AdService/GetAds beneath it",
+        "correlate_attribute_fault classifies this as a SERVICE fault on frontend (confidence 0.9): frontend server spans error",
+        "hypothesis_gather_evidence supports frontend as origin (confidence 0.9), nearest change chg_10001",
+        "chg_10001 is a deploy on frontend at second 225 (94s before onset) that changed the ad_refresh interval \u2014 directly touching the AdService call path that subsequently failed",
+        "No other service has elevated error rates post-onset; fault is isolated to frontend"
+      ]
+    },
+    {
+      "service": "ad",
+      "is_origin": true,
+      "fault_type": "latency",
+      "own_server_errors": 0,
+      "shifted_signals": [
+        "latency_p95_ms"
+      ],
+      "suspect_change_id": "chg_10003",
+      "confidence": 0.92,
+      "evidence": [
+        "ad p95 latency jumped from ~2.5ms (baseline) to ~524ms post-onset \u2014 a 20,800% increase (208x baseline)",
+        "traces_service_summary confirms 0 server error spans, ruling out an error fault; this is a pure latency fault",
+        "Change chg_10003 deployed 19 seconds before onset (t=300): 'ad JVM garbage collection settings changed' touching jvm_gc and heap_settings",
+        "JVM GC tuning changes directly explain latency spikes (GC stop-the-world pauses) without triggering error spans",
+        "No CPU saturation detected, consistent with GC pausing threads rather than saturating cores",
+        "hypothesis_gather_evidence confirmed supported=true for the ad service latency hypothesis with chg_10003 as the suspect change",
+        "traces_latency_origin shows ad has own self-latency p95 of 1091ms, placing it as the second-highest latency contributor behind frontend"
+      ]
+    }
+  ],
+  "tool_errors": 0,
+  "iterations": 6,
+  "stop": "reported",
+  "usage": {
+    "input": 20405,
+    "output": 2229,
+    "cache_read": 60815,
+    "cache_write": 12163
+  },
+  "worker_usage": {
+    "input": 26697,
+    "output": 3083,
+    "cache_read": 99790,
+    "cache_write": 19958
+  },
+  "feedback": "Investigation was clean. The latency_origin tool immediately pointed to `ad` with high self-time, which combined with zero errors and zero CPU saturation made this clearly a latency-only incident. The JVM GC change on ad was the only change on the implicated service and its diff_touches (jvm_gc, heap_settings) perfectly match intermittent stall pauses. The investigate_parallel findings were useful but the frontend investigator over-attributed 1 error span as a service fault when it was really a downstream timeout from ad stalling. The tools worked well for this latency scenario.",
+  "denials": 0
+}

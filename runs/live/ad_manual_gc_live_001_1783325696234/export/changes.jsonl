@@ -1,0 +1,5 @@
+{"diff_touches": ["batch_size"], "id": "chg_9004", "kind": "runtime_config_change", "service": "recommendation", "summary": "recommendation batch size changed", "time": 0}
+{"diff_touches": ["ad_refresh"], "id": "chg_10001", "kind": "deploy", "service": "frontend", "summary": "frontend ad refresh interval changed", "time": 225}
+{"diff_touches": ["workers"], "id": "chg_10002", "kind": "runtime_config_change", "service": "quote", "summary": "quote service worker count adjusted", "time": 265}
+{"diff_touches": ["jvm_gc", "heap_settings"], "id": "chg_10003", "kind": "runtime_config_change", "service": "ad", "summary": "ad JVM garbage collection settings changed", "time": 300}
+{"diff_touches": ["eviction"], "id": "chg_10004", "kind": "runtime_config_change", "service": "cart", "summary": "cart cache eviction tuned", "time": 355}

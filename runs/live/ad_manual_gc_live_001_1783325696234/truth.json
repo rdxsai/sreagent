@@ -1,0 +1,26 @@
+{
+  "scenario_id": "ad_manual_gc_live_001",
+  "injection": {
+    "raw_flag_key": "adManualGc",
+    "variant": "on",
+    "enabled_at_second": 300
+  },
+  "root_cause": {
+    "kind": "service",
+    "type": "gc_pause",
+    "service": "ad",
+    "caller": null,
+    "callee": null
+  },
+  "culprit_change_id": "chg_10003",
+  "expected_evidence": [
+    "ad latency shows periodic pause spikes after onset",
+    "ad logs mention manual garbage collection after onset",
+    "symptoms begin after change chg_10003"
+  ],
+  "decoy_change_ids": [
+    "chg_10001",
+    "chg_10002",
+    "chg_10004"
+  ]
+}

@@ -1,0 +1,75 @@
+{
+  "scenario_id": "ad_manual_gc_live_001",
+  "diagnosis": {
+    "correct": true,
+    "location_correct": true,
+    "culprit_correct": true,
+    "decoys_ruled_out": true,
+    "type_match": false,
+    "reported": {
+      "root_cause": {
+        "kind": "service",
+        "type": "latency",
+        "service": "ad",
+        "caller": null,
+        "callee": null
+      },
+      "culprit_change_id": "chg_10003",
+      "ruled_out_change_ids": [
+        "chg_9004",
+        "chg_10001",
+        "chg_10002",
+        "chg_10004"
+      ]
+    },
+    "truth": {
+      "root_cause": {
+        "kind": "service",
+        "type": "gc_pause",
+        "service": "ad"
+      },
+      "culprit_change_id": "chg_10003",
+      "decoy_change_ids": [
+        "chg_10001",
+        "chg_10002",
+        "chg_10004"
+      ]
+    }
+  },
+  "speed": {
+    "wall_time_s": 120.7,
+    "iterations": 6
+  },
+  "cost": {
+    "est_cost_usd": 0.4953,
+    "tool_calls": 40,
+    "manager_calls": 13,
+    "worker_calls": 27,
+    "tokens_manager": {
+      "input": 20405,
+      "output": 2229,
+      "cache_read": 60815,
+      "cache_write": 12163
+    },
+    "tokens_workers": {
+      "input": 26697,
+      "output": 3083,
+      "cache_read": 99790,
+      "cache_write": 19958
+    }
+  },
+  "backend": {
+    "nrql_queries": 68,
+    "nrql_cache_hits": 120,
+    "nrql_retries": 0,
+    "hydration_pages": 28,
+    "hydrated_spans": 63413
+  },
+  "reliability": {
+    "tool_errors": 0,
+    "hook_denials": 0,
+    "stop": "reported",
+    "subagents": 2,
+    "completed": true
+  }
+}

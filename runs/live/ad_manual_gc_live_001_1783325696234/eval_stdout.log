@@ -1,0 +1,14 @@
+
+=== ad_manual_gc_live_001: CORRECT ===
+  location=True culprit=True decoys_ruled_out=True type_match=False
+  reported: {'kind': 'service', 'type': 'latency', 'service': 'ad', 'caller': None, 'callee': None} culprit=chg_10003 ruled_out=['chg_9004', 'chg_10001', 'chg_10002', 'chg_10004']
+  stop=reported iterations=6 tool_calls=40 (manager=13 workers=27) subagents=2 tool_errors=0 hook_denials=0
+  manager_calls={'traces_build_topology': 1, 'metrics_summary_all': 1, 'traces_first_error_time': 1, 'metrics_resource_saturation': 1, 'traces_latency_origin': 1, 'metrics_top_movers': 1, 'correlate_onset_consensus': 1, 'investigate_parallel': 1, 'changes_rank_culprit': 1, 'changes_search': 1, 'report_build_evidence': 1, 'report_self_check': 1, 'report_root_cause': 1}
+  worker_calls={'traces_first_error_time': 2, 'metrics_summary_all': 2, 'correlate_onset_consensus': 2, 'traces_error_origin': 2, 'correlate_signals': 2, 'traces_error_summary': 1, 'traces_span_tree': 1, 'changes_rank_culprit': 2, 'changes_search': 2, 'traces_service_summary': 2, 'hypothesis_gather_evidence': 2, 'correlate_attribute_fault': 1, 'topology_locate_origin': 1, 'report_finding': 2, 'traces_latency_origin': 1, 'metrics_compare_baseline': 1, 'metrics_resource_saturation': 1}
+    finding: frontend is_origin=True fault=error suspect=chg_10001 conf=0.88
+    finding: ad is_origin=True fault=latency suspect=chg_10003 conf=0.92
+  tokens manager(opus): in=20405 out=2229 cache_read=60815 | workers(sonnet): in=26697 out=3083 cache_read=99790 | est_cost=$0.4953
+  feedback:
+    Investigation was clean. The latency_origin tool immediately pointed to `ad` with high self-time, which combined with zero errors and zero CPU saturation made this clearly a latency-only incident. The JVM GC change on ad was the only change on the implicated service and its diff_touches (jvm_gc, heap_settings) perfectly match intermittent stall pauses. The investigate_parallel findings were useful but the frontend investigator over-attributed 1 error span as a service fault when it was really a downstream timeout from ad stalling. The tools worked well for this latency scenario.
+window export: {'spans': 63413, 'logs': 5000, 'metrics': 3534, 'changes': 5}
+wall_time=121s nrql_queries=104 cache_hits=159 retries=0
