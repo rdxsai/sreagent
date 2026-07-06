@@ -155,3 +155,24 @@ def test_satisfies_telemetry_store_protocol():
         "search_logs", "logs_for_trace", "list_changes",
     ]:
         assert callable(getattr(store, method)), method
+
+
+def test_metric_series_memory_mb_uses_container_metric():
+    results = [{"beginTimeSeconds": W // 1000 + 20, "endTimeSeconds": W // 1000 + 30, "memory_mb": 512.0}]
+    store, client = make_store([("container.memory.usage.total", results)])
+    rows = store.metric_series("recommendation", "memory_mb")
+    assert [(r.time, r.value, r.unit) for r in rows] == [(20, 512.0, "MB")]
+    assert ("recommendation", "memory_mb", "MB") not in []  # placeholder for keys check below
+
+
+def test_list_metric_keys_includes_memory():
+    store, _ = make_store([("uniques(service.name", [{"uniques.service.name": ["recommendation"]}])])
+    assert ("recommendation", "memory_mb", "MB") in store.list_metric_keys()
+
+
+def test_store_stats_expose_hydration_volume():
+    rows = [span(W + 1000, "t1", "s1"), span(W + 2000, "t1", "s2", parent="s1")]
+    store, _ = make_store([("FROM Span SINCE", rows)])
+    store.all_spans()
+    assert store.stats["hydrated_spans"] == 2
+    assert store.stats["hydration_pages"] >= 1

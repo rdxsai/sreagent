@@ -81,3 +81,33 @@ def test_post_custom_events_sends_license_key_and_batch():
     post_custom_events(8250926, "lic", events, transport=httpx.MockTransport(handler))
     assert seen["key"] == "lic"
     assert seen["body"] == events
+
+
+def test_client_stats_and_query_log_track_queries_cache_and_latency():
+    def handler(request):
+        return httpx.Response(200, json=_graphql_ok([{"v": 1}]))
+
+    client = make_client(handler)
+    client.nrql("SELECT 1")
+    client.nrql("SELECT 1")  # cache hit
+    client.nrql("SELECT 2")
+    assert client.stats["queries"] == 2
+    assert client.stats["cache_hits"] == 1
+    assert len(client.query_log) == 3
+    live, cached = client.query_log[0], client.query_log[1]
+    assert live["cached"] is False and cached["cached"] is True
+    assert live["query"] == "SELECT 1" and live["ms"] >= 0
+
+
+def test_client_stats_count_retries():
+    calls = {"n": 0}
+
+    def handler(request):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return httpx.Response(429, json={})
+        return httpx.Response(200, json=_graphql_ok([{"ok": 1}]))
+
+    client = make_client(handler, retry_wait_s=0)
+    client.nrql("SELECT 1")
+    assert client.stats["retries"] == 1

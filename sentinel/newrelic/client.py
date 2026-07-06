@@ -72,6 +72,8 @@ class NerdGraphClient:
         self._retry_wait = retry_wait_s
         self._cache: dict[str, tuple[float, list[dict]]] = {}
         self._lock = threading.Lock()
+        self.stats: dict[str, int] = {"queries": 0, "cache_hits": 0, "retries": 0}
+        self.query_log: list[dict] = []
 
     @classmethod
     def from_env(cls) -> NerdGraphClient:
@@ -88,10 +90,16 @@ class NerdGraphClient:
         with self._lock:
             hit = self._cache.get(query)
             if hit and now - hit[0] < self._cache_ttl:
+                self.stats["cache_hits"] += 1
+                self.query_log.append({"query": query, "ms": 0, "cached": True, "rows": len(hit[1])})
                 return hit[1]
+        started = time.monotonic()
         results = self._execute(query)
+        elapsed_ms = int((time.monotonic() - started) * 1000)
         with self._lock:
             self._cache[query] = (time.monotonic(), results)
+            self.stats["queries"] += 1
+            self.query_log.append({"query": query, "ms": elapsed_ms, "cached": False, "rows": len(results)})
         return results
 
     def _execute(self, query: str) -> list[dict]:
@@ -100,6 +108,7 @@ class NerdGraphClient:
             wait=wait_exponential(multiplier=self._retry_wait, max=30),
             stop=stop_after_attempt(5),
             reraise=True,
+            before_sleep=lambda _state: self._count_retry(),
         )
         def _post() -> list[dict]:
             self._limiter.acquire()
@@ -123,6 +132,10 @@ class NerdGraphClient:
             return _post()
         except httpx.HTTPError as exc:
             raise BackendQueryError(f"NerdGraph request failed: {exc}") from exc
+
+    def _count_retry(self) -> None:
+        with self._lock:
+            self.stats["retries"] += 1
 
 
 def post_custom_events(

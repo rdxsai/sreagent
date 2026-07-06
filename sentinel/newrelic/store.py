@@ -37,11 +37,12 @@ _PAGE_LIMIT = 5_000
 _METRIC_BUILDERS = {
     "latency_p95_ms": nrql.metric_latency_p95,
     "request_error_rate": nrql.metric_error_rate,
+    "memory_mb": nrql.metric_memory_mb,
 }
 
 
 class NewRelicStore:
-    METRIC_UNITS = {"latency_p95_ms": "ms", "request_error_rate": "ratio"}
+    METRIC_UNITS = {"latency_p95_ms": "ms", "request_error_rate": "ratio", "memory_mb": "MB"}
 
     def __init__(
         self,
@@ -65,6 +66,7 @@ class NewRelicStore:
         self._lock = threading.Lock()
         self._spans: list[TraceRow] | None = None
         self._children: dict[str, list[TraceRow]] = {}
+        self.stats: dict[str, int] = {"hydration_pages": 0, "hydrated_spans": 0}
 
     # -- context ---------------------------------------------------------------
 
@@ -218,9 +220,11 @@ class NewRelicStore:
                     children.setdefault(row.parent_span_id, []).append(row)
             self._spans = spans
             self._children = children
-            log.info("nr_hydration_complete", spans=len(spans), pages=len(raw) // _PAGE_LIMIT + 1)
+            self.stats["hydrated_spans"] = len(spans)
+            log.info("nr_hydration_complete", spans=len(spans), pages=self.stats["hydration_pages"])
 
     def _fetch_chunk(self, start_ms: int, end_ms: int) -> list[dict]:
+        self.stats["hydration_pages"] += 1
         results = self._client.nrql(nrql.spans_page(start_ms, end_ms))
         if len(results) >= _PAGE_LIMIT and end_ms - start_ms > _MIN_CHUNK_MS:
             middle = (start_ms + end_ms) // 2

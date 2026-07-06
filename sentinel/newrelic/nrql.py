@@ -46,6 +46,14 @@ def metric_error_rate(service: str, start_ms: int, end_ms: int, bucket_s: int) -
     )
 
 
+def metric_memory_mb(service: str, start_ms: int, end_ms: int, bucket_s: int) -> str:
+    return (
+        "SELECT max(container.memory.usage.total) / 1e6 AS 'memory_mb' FROM Metric "
+        f"WHERE container.name = '{_q(service)}' "
+        f"TIMESERIES {bucket_s} seconds SINCE {start_ms} UNTIL {end_ms}"
+    )
+
+
 def logs_search(start_ms: int, end_ms: int, service: str | None, contains: str | None) -> str:
     conditions = []
     if service is not None:
