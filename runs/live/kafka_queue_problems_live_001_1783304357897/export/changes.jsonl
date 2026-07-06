@@ -1,0 +1,4 @@
+{"diff_touches": ["banner"], "id": "chg_2001", "kind": "deploy", "service": "frontend", "summary": "frontend banner assets updated", "time": 200}
+{"diff_touches": ["rate_table"], "id": "chg_2002", "kind": "runtime_config_change", "service": "shipping", "summary": "shipping rate table updated", "time": 240}
+{"diff_touches": ["consumer_delay", "queue_capacity"], "id": "chg_2003", "kind": "runtime_config_change", "service": "kafka", "summary": "queue consumer configuration changed", "time": 300}
+{"diff_touches": ["retry_budget"], "id": "chg_2004", "kind": "runtime_config_change", "service": "payment", "summary": "payment retry budget adjusted", "time": 340}

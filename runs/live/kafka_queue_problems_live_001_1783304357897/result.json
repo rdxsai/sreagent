@@ -1,0 +1,242 @@
+{
+  "scenario_id": "kafka_queue_problems_live_001",
+  "grade": {
+    "correct": true,
+    "location_correct": true,
+    "culprit_correct": true,
+    "decoys_ruled_out": true,
+    "type_match": false,
+    "reported": {
+      "root_cause": {
+        "kind": "service",
+        "type": "latency",
+        "service": "fraud-detection",
+        "caller": null,
+        "callee": null
+      },
+      "culprit_change_id": "chg_2003",
+      "ruled_out_change_ids": [
+        "chg_2001",
+        "chg_2002",
+        "chg_2004"
+      ]
+    },
+    "truth": {
+      "root_cause": {
+        "kind": "service",
+        "type": "queue_backpressure",
+        "service": "kafka"
+      },
+      "culprit_change_id": "chg_2003",
+      "decoy_change_ids": [
+        "chg_2001",
+        "chg_2002",
+        "chg_2004"
+      ]
+    }
+  },
+  "report": {
+    "root_cause": {
+      "kind": "service",
+      "type": "latency",
+      "service": "fraud-detection",
+      "caller": null,
+      "callee": null
+    },
+    "culprit_change_id": "chg_2003",
+    "ruled_out_change_ids": [
+      "chg_2001",
+      "chg_2002",
+      "chg_2004"
+    ],
+    "evidence": [
+      "fraud-detection 'process orders' consumer spans jumped from ~4ms to ~1000ms post-onset (250x slowdown)",
+      "fraud-detection p95 latency shifted from 40ms pre-onset to 373ms post-onset",
+      "chg_2003 (kafka runtime_config_change at second 300) modified consumer_delay and queue_capacity - consumer_delay directly explains the ~1000ms artificial processing delay",
+      "chg_2003 precedes onset by 14 seconds (second 300 vs onset 314)",
+      "fraud-detection has 0 errors - pure latency fault consistent with consumer_delay config change",
+      "Slowdown is self-contained in fraud-detection's own processing (flagd client call within it took only ~9ms)",
+      "chg_2001 ruled out: frontend banner assets - irrelevant to order processing",
+      "chg_2002 ruled out: shipping rate_table - shipping shows no fault symptoms",
+      "chg_2004 ruled out: payment retry_budget at second 340 - after onset at 314"
+    ],
+    "timeline": [
+      {
+        "second": 200,
+        "kind": "change",
+        "detail": "chg_2001 on frontend: frontend banner assets updated"
+      },
+      {
+        "second": 240,
+        "kind": "change",
+        "detail": "chg_2002 on shipping: shipping rate table updated"
+      },
+      {
+        "second": 300,
+        "kind": "change",
+        "detail": "chg_2003 on kafka: queue consumer configuration changed (consumer_delay, queue_capacity)"
+      },
+      {
+        "second": 314,
+        "kind": "onset",
+        "detail": "First error spans appear; fraud-detection process orders latency spikes to ~1000ms"
+      },
+      {
+        "second": 340,
+        "kind": "change",
+        "detail": "chg_2004 on payment: payment retry budget adjusted"
+      },
+      {
+        "second": 360,
+        "kind": "alert",
+        "detail": "OrderProcessingLag alert fires"
+      }
+    ]
+  },
+  "calls": [
+    "traces_build_topology",
+    "metrics_summary_all",
+    "traces_first_error_time",
+    "metrics_resource_saturation",
+    "traces_latency_origin",
+    "metrics_top_movers",
+    "topology_dependencies",
+    "topology_dependencies",
+    "traces_slowest_operations",
+    "correlate_onset_consensus",
+    "traces_find",
+    "traces_find",
+    "correlate_signals",
+    "correlate_signals",
+    "traces_find",
+    "investigate_parallel",
+    "changes_rank_culprit",
+    "changes_search",
+    "report_build_evidence",
+    "report_self_check",
+    "report_root_cause"
+  ],
+  "worker_calls": [
+    "traces_first_error_time",
+    "traces_service_summary",
+    "correlate_onset_consensus",
+    "correlate_signals",
+    "traces_error_origin",
+    "changes_search",
+    "hypothesis_rule_out",
+    "correlate_timeline",
+    "report_finding",
+    "traces_first_error_time",
+    "traces_error_origin",
+    "traces_service_summary",
+    "correlate_onset_consensus",
+    "correlate_signals",
+    "changes_rank_culprit",
+    "topology_dependencies",
+    "traces_get_trace",
+    "changes_search",
+    "hypothesis_gather_evidence",
+    "traces_error_summary",
+    "correlate_metric_to_traces",
+    "logs_error_clusters",
+    "correlate_timeline",
+    "logs_search",
+    "report_finding",
+    "traces_first_error_time",
+    "metrics_summary_all",
+    "correlate_onset_consensus",
+    "correlate_signals",
+    "traces_error_origin",
+    "topology_dependencies",
+    "traces_latency_origin",
+    "changes_rank_culprit",
+    "traces_service_summary",
+    "changes_search",
+    "hypothesis_rule_out",
+    "metrics_detect_shift",
+    "traces_find",
+    "traces_find",
+    "metrics_series",
+    "traces_compare_pre_post",
+    "changes_search",
+    "traces_span_tree",
+    "traces_span_tree",
+    "correlate_timeline",
+    "report_finding"
+  ],
+  "internal_calls": [],
+  "subagents": 3,
+  "findings": [
+    {
+      "service": "shipping",
+      "is_origin": false,
+      "fault_type": "none",
+      "own_server_errors": 0,
+      "shifted_signals": [],
+      "suspect_change_id": "chg_2002",
+      "confidence": 0.97,
+      "evidence": [
+        "shipping has 0 server error spans and a 0.0 error rate across 458 total spans \u2014 no own-work failures",
+        "correlate_signals: request_error_rate and latency_p95_ms both show shifted=false after onset at second 314",
+        "traces_error_origin: fault is classified as an EDGE fault from 'accounting' \u2192 'unknown'; shipping is not on the error propagation path",
+        "hypothesis_rule_out: shipping formally ruled out \u2014 no own server errors and no meaningful latency/CPU rise post-onset",
+        "Only change on shipping is chg_2002 (runtime_config_change: 'shipping rate table updated', diff_touches: rate_table) at second 240, which precedes onset at 314 but correlates with no observed failure symptoms in shipping itself"
+      ]
+    },
+    {
+      "service": "accounting",
+      "is_origin": true,
+      "fault_type": "edge",
+      "own_server_errors": 0,
+      "shifted_signals": [
+        "request_error_rate"
+      ],
+      "suspect_change_id": "chg_2003",
+      "confidence": 0.88,
+      "evidence": [
+        "accounting has 800 erroring CLIENT spans (operation: astronomy_db) from onset second 314, with 0 server error spans \u2014 classic edge fault pattern",
+        "traces_error_origin classifies the fault as an edge fault with accounting as caller and unknown (astronomy_db) as callee",
+        "751 'Order parsing failed:' error logs in accounting starting exactly at second 314",
+        "chg_2003 (kafka runtime_config_change, second 300) modified consumer_delay and queue_capacity \u2014 only 14 seconds before the onset at second 314",
+        "accounting consumes kafka messages (visible consumer span 'receive orders' in traces); the kafka consumer config change corrupted message delivery, causing order parse failures and cascading astronomy_db client errors",
+        "No other changes on accounting itself; chg_2003 on kafka is the nearest pre-onset change and directly touches the consumer pipeline accounting depends on"
+      ]
+    },
+    {
+      "service": "fraud-detection",
+      "is_origin": true,
+      "fault_type": "latency",
+      "own_server_errors": 0,
+      "shifted_signals": [
+        "latency_p95_ms"
+      ],
+      "suspect_change_id": "chg_2003",
+      "confidence": 0.88,
+      "evidence": [
+        "fraud-detection latency_p95 shifted from ~9ms (pre-onset) to ~396ms (post-onset mean), with individual 'process orders' consumer spans hitting ~1016ms post-onset vs ~4ms pre-onset \u2014 a ~250x spike in processing time.",
+        "The latency spike is self-contained within fraud-detection's own 'process orders' consumer span; the flagd client call within it took only ~9ms, confirming the slowdown is in fraud-detection's own processing, not a downstream dependency.",
+        "Kafka runtime_config_change chg_2003 (second 300, 14s before onset) modified 'consumer_delay' and 'queue_capacity' \u2014 consumer_delay directly explains the ~1000ms artificial delay introduced to every 'process orders' span.",
+        "fraud-detection has 0 server error spans and 0 error spans; this is a pure latency fault with no errors, consistent with a consumer_delay configuration change rather than a crash or dependency failure.",
+        "The latency window is time-bounded (seconds 312\u2013412) and then resolves, consistent with a transient config change that was later reverted or expired.",
+        "fraud-detection has no callers and no callees in the live topology \u2014 it is an isolated Kafka consumer, so this latency fault does not propagate upstream (no victim services)."
+      ]
+    }
+  ],
+  "tool_errors": 0,
+  "iterations": 10,
+  "stop": "reported",
+  "usage": {
+    "input": 66229,
+    "output": 3320,
+    "cache_read": 109467,
+    "cache_write": 12163
+  },
+  "worker_usage": {
+    "input": 59598,
+    "output": 5863,
+    "cache_read": 189601,
+    "cache_write": 29937
+  },
+  "feedback": "The investigation went smoothly. The key insight was recognizing that fraud-detection is an isolated Kafka consumer (no callers/callees in the topology) so topology-based error propagation tools couldn't find it - the latency tools (traces_latency_origin, metrics_top_movers, correlate_signals) were essential. The investigate_parallel delegation worked well, giving high-quality findings with change attribution. The change chg_2003 being on \"kafka\" rather than \"fraud-detection\" directly required the rank_culprit tool to surface it since it's on a different service name. The tools handled async/event-driven architectures adequately.",
+  "denials": 0
+}

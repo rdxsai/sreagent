@@ -1,0 +1,31 @@
+{
+  "scenario_id": "kafka_queue_problems_live_001",
+  "injection": {
+    "raw_flag_key": "kafkaQueueProblems",
+    "variant": "on",
+    "enabled_at_second": 300
+  },
+  "root_cause": {
+    "kind": "service",
+    "type": "queue_backpressure",
+    "service": "kafka",
+    "caller": null,
+    "callee": null
+  },
+  "culprit_change_id": "chg_2003",
+  "expected_evidence": [
+    "kafka consumer lag or queue metrics degrade after onset",
+    "checkout continues to succeed while downstream consumers fall behind",
+    "symptoms begin after change chg_2003"
+  ],
+  "decoy_change_ids": [
+    "chg_2001",
+    "chg_2002",
+    "chg_2004"
+  ],
+  "accepted_services": [
+    "kafka",
+    "fraud-detection",
+    "checkout"
+  ]
+}
