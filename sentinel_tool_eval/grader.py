@@ -45,7 +45,8 @@ def grade(report: dict[str, Any] | None, truth: PrivateTruth) -> dict[str, Any]:
     rc = report.get("root_cause") or {}
     kind_ok = rc.get("kind") == truth.root_cause.kind
     if truth.root_cause.kind == "service":
-        location_correct = kind_ok and rc.get("service") == truth.root_cause.service
+        accepted = truth.accepted_services or [truth.root_cause.service]
+        location_correct = kind_ok and rc.get("service") in accepted
     elif truth.root_cause.kind == "edge":
         location_correct = (
             kind_ok

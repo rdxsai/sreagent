@@ -125,6 +125,10 @@ class PrivateTruth(StrictModel):
     culprit_change_id: str = Field(min_length=1)
     expected_evidence: list[str] = Field(min_length=1)
     decoy_change_ids: list[str] = Field(min_length=1)
+    # For async/multi-service faults where the injected code touches several
+    # services: any of these counts as a correct location. None keeps the
+    # single-service exact match.
+    accepted_services: list[str] | None = None
 
 
 class PublicFixture(StrictModel):

@@ -42,6 +42,7 @@ class LiveScenarioSpec:
     culprit: LiveChange
     decoys: tuple[LiveChange, ...]
     expected_evidence: tuple[str, ...]
+    accepted_services: tuple[str, ...] | None = None
     baseline_s: int = 300
     soak_s: int = 300
 
@@ -94,6 +95,9 @@ SPECS: dict[str, LiveScenarioSpec] = {
             "checkout continues to succeed while downstream consumers fall behind",
             "symptoms begin after change chg_2003",
         ),
+        # The injected code lives in checkout (producer flood) and
+        # fraud-detection (consumer sleep); kafka is where the backlog shows.
+        accepted_services=("kafka", "fraud-detection", "checkout"),
     ),
 }
 
@@ -116,7 +120,7 @@ def change_events_payload(spec: LiveScenarioSpec, injection_ms: int) -> list[dic
 
 
 def truth_doc(spec: LiveScenarioSpec) -> dict:
-    return {
+    doc = {
         "scenario_id": spec.id,
         "injection": {
             "raw_flag_key": spec.raw_flag_key,
@@ -128,6 +132,9 @@ def truth_doc(spec: LiveScenarioSpec) -> dict:
         "expected_evidence": list(spec.expected_evidence),
         "decoy_change_ids": [d.id for d in spec.decoys],
     }
+    if spec.accepted_services:
+        doc["accepted_services"] = list(spec.accepted_services)
+    return doc
 
 
 def run_meta_doc(spec: LiveScenarioSpec, injection_ms: int, end_ms: int) -> dict:
