@@ -63,6 +63,49 @@ def _rpc_callee(text: object) -> str | None:
     return kebab or None
 
 
+def callee_from(children: dict[str, list[TraceRow]], row: TraceRow) -> str | None:
+    server_children = [c for c in children.get(row.span_id, []) if span_kind(c) == "server"]
+    if server_children:
+        return server_children[0].service
+    return _rpc_callee(row.attributes.get("rpc.method") or row.operation)
+
+
+def filter_spans(
+    rows: list[TraceRow],
+    callee_fn,
+    *,
+    service: str | None = None,
+    span_kind: str | None = None,  # noqa: A002 - matches OTel terminology
+    status: str | None = None,
+    rpc_callee: str | None = None,
+    operation_contains: str | None = None,
+    start: int | None = None,
+    end: int | None = None,
+    limit: int | None = None,
+) -> list[TraceRow]:
+    out: list[TraceRow] = []
+    kind_want = span_kind.lower() if span_kind else None
+    status_want = status.upper() if status else None
+    for r in rows:
+        if service is not None and r.service != service:
+            continue
+        if kind_want is not None and _kind_of(r) != kind_want:
+            continue
+        if status_want is not None and r.status.upper() != status_want:
+            continue
+        if start is not None and r.time < start:
+            continue
+        if end is not None and r.time > end:
+            continue
+        if operation_contains is not None and operation_contains not in r.operation:
+            continue
+        if rpc_callee is not None and callee_fn(r) != rpc_callee:
+            continue
+        out.append(r)
+    out.sort(key=lambda r: (r.time, r.trace_id, r.span_id))
+    return out[:limit] if limit is not None else out
+
+
 class TelemetryStore(Protocol):
     def window(self) -> TimeWindow: ...
     def alerts(self) -> list[DerivedAlert]: ...
@@ -135,10 +178,7 @@ class FixtureStore:
         return list(self._children.get(span_id, []))
 
     def callee_of(self, row: TraceRow) -> str | None:
-        server_children = [c for c in self._children.get(row.span_id, []) if span_kind(c) == "server"]
-        if server_children:
-            return server_children[0].service
-        return _rpc_callee(row.attributes.get("rpc.method") or row.operation)
+        return callee_from(self._children, row)
 
     def find_spans(
         self,
@@ -152,28 +192,18 @@ class FixtureStore:
         end: int | None = None,
         limit: int | None = None,
     ) -> list[TraceRow]:
-        rows = self._spans
-        out: list[TraceRow] = []
-        kind_want = span_kind.lower() if span_kind else None
-        status_want = status.upper() if status else None
-        for r in rows:
-            if service is not None and r.service != service:
-                continue
-            if kind_want is not None and _kind_of(r) != kind_want:
-                continue
-            if status_want is not None and r.status.upper() != status_want:
-                continue
-            if start is not None and r.time < start:
-                continue
-            if end is not None and r.time > end:
-                continue
-            if operation_contains is not None and operation_contains not in r.operation:
-                continue
-            if rpc_callee is not None and self.callee_of(r) != rpc_callee:
-                continue
-            out.append(r)
-        out.sort(key=lambda r: (r.time, r.trace_id, r.span_id))
-        return out[:limit] if limit is not None else out
+        return filter_spans(
+            self._spans,
+            self.callee_of,
+            service=service,
+            span_kind=span_kind,
+            status=status,
+            rpc_callee=rpc_callee,
+            operation_contains=operation_contains,
+            start=start,
+            end=end,
+            limit=limit,
+        )
 
     def get_trace(self, trace_id: str) -> list[TraceRow]:
         spans = [r for r in self._spans if r.trace_id == trace_id]
