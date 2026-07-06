@@ -1,0 +1,31 @@
+#!/usr/bin/env python
+"""Probe New Relic ingest: per-signal counts and span/log column names.
+
+Run after pointing the demo collector at New Relic to confirm data arrival
+and verify the column names the mappers rely on (trace.id, id, parent.id,
+duration.ms, otel.status_code, span.kind, severity.text)."""
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from sentinel.newrelic.client import NerdGraphClient
+
+
+def main() -> int:
+    client = NerdGraphClient.from_env()
+    for table in ("Span", "Log", "Metric"):
+        count = client.nrql(f"SELECT count(*) FROM {table} SINCE 10 minutes ago")
+        print(f"{table}: {count}")
+    services = client.nrql("SELECT uniques(service.name, 100) FROM Span SINCE 10 minutes ago")
+    print(f"services: {services}")
+    keys = client.nrql("SELECT keyset() FROM Span SINCE 10 minutes ago LIMIT 1")
+    print(f"span keys: {keys}")
+    log_keys = client.nrql("SELECT keyset() FROM Log SINCE 10 minutes ago LIMIT 1")
+    print(f"log keys: {log_keys}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
