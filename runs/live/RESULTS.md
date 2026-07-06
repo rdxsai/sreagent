@@ -15,6 +15,7 @@ trace, NRQL query log, fixture-format window export) in each run directory.
 | 7 | ad_failure_live_001                 | probabilistic error spans        | CORRECT | yes | yes     | yes    | $0.49  | 36    | 0      | 2m      | ad_failure_live_001_1783323939751                |
 | 8 | ad_high_cpu_live_001                | cpu saturation, no errors        | CORRECT | yes | yes     | yes    | $1.36  | 83    | 0      | 4m      | ad_high_cpu_live_001_1783324787063               |
 | 9 | ad_manual_gc_live_001               | gc pause stalls                  | CORRECT | yes | yes     | yes    | $0.50  | 40    | 0      | 2m      | ad_manual_gc_live_001_1783325696234              |
+| 10| payment_failure_live_001            | sharp error onset (control)      | CORRECT | yes | yes     | yes    | $0.53  | 37    | 0      | 2m      | payment_failure_live_001_1783326460065           |
 
 ## Notes
 

@@ -1,0 +1,78 @@
+{
+  "scenario_id": "payment_failure_live_001",
+  "diagnosis": {
+    "correct": true,
+    "location_correct": true,
+    "culprit_correct": true,
+    "decoys_ruled_out": true,
+    "type_match": false,
+    "reported": {
+      "root_cause": {
+        "kind": "service",
+        "type": "error",
+        "service": "payment",
+        "caller": null,
+        "callee": null
+      },
+      "culprit_change_id": "chg_1003",
+      "ruled_out_change_ids": [
+        "chg_1001",
+        "chg_1002",
+        "chg_1004",
+        "chg_10001",
+        "chg_10002",
+        "chg_10003",
+        "chg_10004"
+      ]
+    },
+    "truth": {
+      "root_cause": {
+        "kind": "service",
+        "type": "payment_charge_failure",
+        "service": "payment"
+      },
+      "culprit_change_id": "chg_1003",
+      "decoy_change_ids": [
+        "chg_1001",
+        "chg_1002",
+        "chg_1004"
+      ]
+    }
+  },
+  "speed": {
+    "wall_time_s": 119.5,
+    "iterations": 6
+  },
+  "cost": {
+    "est_cost_usd": 0.5299,
+    "tool_calls": 37,
+    "manager_calls": 11,
+    "worker_calls": 26,
+    "tokens_manager": {
+      "input": 18244,
+      "output": 2058,
+      "cache_read": 60815,
+      "cache_write": 12163
+    },
+    "tokens_workers": {
+      "input": 42956,
+      "output": 2943,
+      "cache_read": 109769,
+      "cache_write": 19958
+    }
+  },
+  "backend": {
+    "nrql_queries": 64,
+    "nrql_cache_hits": 96,
+    "nrql_retries": 0,
+    "hydration_pages": 24,
+    "hydrated_spans": 43537
+  },
+  "reliability": {
+    "tool_errors": 0,
+    "hook_denials": 0,
+    "stop": "reported",
+    "subagents": 2,
+    "completed": true
+  }
+}

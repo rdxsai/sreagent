@@ -1,0 +1,43 @@
+{
+  "trace": [],
+  "findings": [
+    {
+      "service": "payment",
+      "is_origin": true,
+      "fault_type": "error",
+      "own_server_errors": 3,
+      "shifted_signals": [
+        "request_error_rate"
+      ],
+      "suspect_change_id": "chg_1003",
+      "confidence": 0.97,
+      "evidence": [
+        "traces_error_origin classifies fault as service fault at 'payment' (internal span kind, depth 11)",
+        "payment own server spans erroring: 3 server-side ERROR spans post-onset",
+        "payment internal 'charge' span errors in trace b7984e1e2657b9d17acc9a1c9ef740a4 \u2014 the deepest error node in the call tree",
+        "payment error rate shifted from 13% pre-onset to 100% post-onset (request_error_rate flagged as shifted)",
+        "chg_1003: runtime_config_change on payment at t=300s (158s before onset=458s), touching charge_handler and payment_provider \u2014 directly matches the failing charge operation",
+        "no downstream dependency of payment is erroring; the fault originates within payment itself"
+      ]
+    },
+    {
+      "service": "checkout",
+      "is_origin": false,
+      "fault_type": "error",
+      "own_server_errors": 3,
+      "shifted_signals": [
+        "request_error_rate"
+      ],
+      "suspect_change_id": null,
+      "confidence": 0.95,
+      "evidence": [
+        "Trace b7984e1e: checkout server span errors because its client call to payment.Charge fails \u2014 payment's own internal 'charge' span is the deepest error leaf (service fault at payment, not checkout)",
+        "traces_error_origin attributes root fault to 'payment' (internal span, depth 11)",
+        "checkout has 3 own server error spans but all are propagation: checkout client\u2192payment (3 errors) + payment server (3 errors); the payment server errors confirm the fault originates there",
+        "checkout error rate shifted post-onset (0.05\u21920.25) but this is entirely explained by its dependency on payment (45.8% error rate)",
+        "Zero changes found for checkout in the change registry \u2014 no checkout-side change to investigate",
+        "payment change chg_1003 (runtime_config_change at t=300s, touching charge_handler and payment_provider) precedes onset at t=458s by 158s and matches the failing 'charge' operation exactly"
+      ]
+    }
+  ]
+}

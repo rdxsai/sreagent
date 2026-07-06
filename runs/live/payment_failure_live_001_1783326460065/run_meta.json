@@ -1,0 +1,23 @@
+{
+  "scenario_id": "payment_failure_live_001",
+  "window_start_ms": 1783326160065,
+  "window_end_ms": 1783326760267,
+  "symptom": "Checkout attempts started failing.",
+  "alerts": [
+    {
+      "alertname": "UserFacingDegradation",
+      "severity": "critical",
+      "starts_at_second": 360,
+      "labels": {
+        "signal": "degradation",
+        "tier": "user_facing"
+      },
+      "annotations": {
+        "summary": "Degradation detected since second 360"
+      },
+      "value": 1.0,
+      "expr": "live:paymentFailure",
+      "fingerprint": "live-payment_failure_live_001"
+    }
+  ]
+}

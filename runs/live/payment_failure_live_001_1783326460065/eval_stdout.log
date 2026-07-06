@@ -1,0 +1,14 @@
+
+=== payment_failure_live_001: CORRECT ===
+  location=True culprit=True decoys_ruled_out=True type_match=False
+  reported: {'kind': 'service', 'type': 'error', 'service': 'payment', 'caller': None, 'callee': None} culprit=chg_1003 ruled_out=['chg_1001', 'chg_1002', 'chg_1004', 'chg_10001', 'chg_10002', 'chg_10003', 'chg_10004']
+  stop=reported iterations=6 tool_calls=37 (manager=11 workers=26) subagents=2 tool_errors=0 hook_denials=0
+  manager_calls={'traces_build_topology': 1, 'traces_first_error_time': 1, 'metrics_summary_all': 1, 'traces_error_origin': 1, 'topology_locate_origin': 1, 'investigate_parallel': 1, 'correlate_onset_consensus': 1, 'changes_rank_culprit': 1, 'report_build_evidence': 1, 'report_self_check': 1, 'report_root_cause': 1}
+  worker_calls={'traces_first_error_time': 2, 'traces_error_origin': 2, 'metrics_summary_all': 2, 'correlate_signals': 2, 'traces_error_summary': 2, 'changes_rank_culprit': 2, 'changes_search': 3, 'correlate_onset_consensus': 2, 'traces_span_tree': 1, 'report_finding': 2, 'topology_dependencies': 1, 'hypothesis_gather_evidence': 1, 'correlate_attribute_fault': 1, 'traces_get_trace': 1, 'hypothesis_rule_out': 1, 'changes_lookback': 1}
+    finding: payment is_origin=True fault=error suspect=chg_1003 conf=0.97
+    finding: checkout is_origin=False fault=error suspect=None conf=0.95
+  tokens manager(opus): in=18244 out=2058 cache_read=60815 | workers(sonnet): in=42956 out=2943 cache_read=109769 | est_cost=$0.5299
+  feedback:
+    Investigation was clean and efficient. The triage phase correctly identified payment as the origin in the first batch of calls. investigate_parallel confirmed it with high confidence and surfaced the suspect change with content-matching (diff_touches: charge_handler, payment_provider matching the failing charge operation). changes_rank_culprit corroborated timing. No ambiguity in this case — single service fault with a clear culprit change. The tools worked well in concert; the only minor friction is that correlate_onset_consensus disagreed (log noise), but the trace-based onset was correctly preferred.
+window export: {'spans': 43537, 'logs': 4982, 'metrics': 3529, 'changes': 8}
+wall_time=120s nrql_queries=100 cache_hits=135 retries=0

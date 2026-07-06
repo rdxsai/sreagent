@@ -1,0 +1,217 @@
+{
+  "scenario_id": "payment_failure_live_001",
+  "grade": {
+    "correct": true,
+    "location_correct": true,
+    "culprit_correct": true,
+    "decoys_ruled_out": true,
+    "type_match": false,
+    "reported": {
+      "root_cause": {
+        "kind": "service",
+        "type": "error",
+        "service": "payment",
+        "caller": null,
+        "callee": null
+      },
+      "culprit_change_id": "chg_1003",
+      "ruled_out_change_ids": [
+        "chg_1001",
+        "chg_1002",
+        "chg_1004",
+        "chg_10001",
+        "chg_10002",
+        "chg_10003",
+        "chg_10004"
+      ]
+    },
+    "truth": {
+      "root_cause": {
+        "kind": "service",
+        "type": "payment_charge_failure",
+        "service": "payment"
+      },
+      "culprit_change_id": "chg_1003",
+      "decoy_change_ids": [
+        "chg_1001",
+        "chg_1002",
+        "chg_1004"
+      ]
+    }
+  },
+  "report": {
+    "root_cause": {
+      "kind": "service",
+      "type": "error",
+      "service": "payment",
+      "caller": null,
+      "callee": null
+    },
+    "culprit_change_id": "chg_1003",
+    "ruled_out_change_ids": [
+      "chg_1001",
+      "chg_1002",
+      "chg_1004",
+      "chg_10001",
+      "chg_10002",
+      "chg_10003",
+      "chg_10004"
+    ],
+    "evidence": [
+      "payment own server spans error (3): a service-fault signal",
+      "payment error rate rose from 0.13 to 1.00 after onset at second 458",
+      "traces_error_origin classifies fault as service fault at payment (internal span, depth 11)",
+      "Error propagation path: load-generator \u2192 frontend-proxy \u2192 frontend \u2192 checkout \u2192 payment",
+      "chg_1003 (runtime_config_change on payment at t=300s) touches charge_handler and payment_provider, directly matching the failing charge operation",
+      "checkout errors are purely propagated from payment; no checkout-side changes exist",
+      "All other changes are on unrelated services (recommendation, frontend, currency, cart, ad, quote) with no error rate shifts"
+    ],
+    "timeline": [
+      {
+        "second": 0,
+        "kind": "change",
+        "detail": "chg_10004 on cart: cart cache eviction tuned"
+      },
+      {
+        "second": 0,
+        "kind": "change",
+        "detail": "chg_10003 on ad: ad JVM garbage collection settings changed"
+      },
+      {
+        "second": 0,
+        "kind": "change",
+        "detail": "chg_10002 on quote: quote service worker count adjusted"
+      },
+      {
+        "second": 0,
+        "kind": "change",
+        "detail": "chg_10001 on frontend: frontend ad refresh interval changed"
+      },
+      {
+        "second": 180,
+        "kind": "change",
+        "detail": "chg_1004 on currency: currency rate cache TTL changed"
+      },
+      {
+        "second": 210,
+        "kind": "change",
+        "detail": "chg_1001 on frontend: frontend copy and layout assets changed"
+      },
+      {
+        "second": 255,
+        "kind": "change",
+        "detail": "chg_1002 on recommendation: recommendation scoring parameter changed"
+      },
+      {
+        "second": 300,
+        "kind": "change",
+        "detail": "chg_1003 on payment: payment processing configuration changed"
+      },
+      {
+        "second": 458,
+        "kind": "onset",
+        "detail": "first error span in payment service"
+      }
+    ]
+  },
+  "calls": [
+    "traces_build_topology",
+    "traces_first_error_time",
+    "metrics_summary_all",
+    "traces_error_origin",
+    "topology_locate_origin",
+    "investigate_parallel",
+    "correlate_onset_consensus",
+    "changes_rank_culprit",
+    "report_build_evidence",
+    "report_self_check",
+    "report_root_cause"
+  ],
+  "worker_calls": [
+    "traces_first_error_time",
+    "traces_error_origin",
+    "metrics_summary_all",
+    "correlate_signals",
+    "traces_error_summary",
+    "changes_rank_culprit",
+    "changes_search",
+    "correlate_onset_consensus",
+    "traces_span_tree",
+    "report_finding",
+    "traces_first_error_time",
+    "metrics_summary_all",
+    "traces_error_origin",
+    "correlate_onset_consensus",
+    "topology_dependencies",
+    "correlate_signals",
+    "traces_error_summary",
+    "hypothesis_gather_evidence",
+    "correlate_attribute_fault",
+    "changes_rank_culprit",
+    "changes_search",
+    "traces_get_trace",
+    "hypothesis_rule_out",
+    "changes_lookback",
+    "changes_search",
+    "report_finding"
+  ],
+  "internal_calls": [],
+  "subagents": 2,
+  "findings": [
+    {
+      "service": "payment",
+      "is_origin": true,
+      "fault_type": "error",
+      "own_server_errors": 3,
+      "shifted_signals": [
+        "request_error_rate"
+      ],
+      "suspect_change_id": "chg_1003",
+      "confidence": 0.97,
+      "evidence": [
+        "traces_error_origin classifies fault as service fault at 'payment' (internal span kind, depth 11)",
+        "payment own server spans erroring: 3 server-side ERROR spans post-onset",
+        "payment internal 'charge' span errors in trace b7984e1e2657b9d17acc9a1c9ef740a4 \u2014 the deepest error node in the call tree",
+        "payment error rate shifted from 13% pre-onset to 100% post-onset (request_error_rate flagged as shifted)",
+        "chg_1003: runtime_config_change on payment at t=300s (158s before onset=458s), touching charge_handler and payment_provider \u2014 directly matches the failing charge operation",
+        "no downstream dependency of payment is erroring; the fault originates within payment itself"
+      ]
+    },
+    {
+      "service": "checkout",
+      "is_origin": false,
+      "fault_type": "error",
+      "own_server_errors": 3,
+      "shifted_signals": [
+        "request_error_rate"
+      ],
+      "suspect_change_id": null,
+      "confidence": 0.95,
+      "evidence": [
+        "Trace b7984e1e: checkout server span errors because its client call to payment.Charge fails \u2014 payment's own internal 'charge' span is the deepest error leaf (service fault at payment, not checkout)",
+        "traces_error_origin attributes root fault to 'payment' (internal span, depth 11)",
+        "checkout has 3 own server error spans but all are propagation: checkout client\u2192payment (3 errors) + payment server (3 errors); the payment server errors confirm the fault originates there",
+        "checkout error rate shifted post-onset (0.05\u21920.25) but this is entirely explained by its dependency on payment (45.8% error rate)",
+        "Zero changes found for checkout in the change registry \u2014 no checkout-side change to investigate",
+        "payment change chg_1003 (runtime_config_change at t=300s, touching charge_handler and payment_provider) precedes onset at t=458s by 158s and matches the failing 'charge' operation exactly"
+      ]
+    }
+  ],
+  "tool_errors": 0,
+  "iterations": 6,
+  "stop": "reported",
+  "usage": {
+    "input": 18244,
+    "output": 2058,
+    "cache_read": 60815,
+    "cache_write": 12163
+  },
+  "worker_usage": {
+    "input": 42956,
+    "output": 2943,
+    "cache_read": 109769,
+    "cache_write": 19958
+  },
+  "feedback": "Investigation was clean and efficient. The triage phase correctly identified payment as the origin in the first batch of calls. investigate_parallel confirmed it with high confidence and surfaced the suspect change with content-matching (diff_touches: charge_handler, payment_provider matching the failing charge operation). changes_rank_culprit corroborated timing. No ambiguity in this case \u2014 single service fault with a clear culprit change. The tools worked well in concert; the only minor friction is that correlate_onset_consensus disagreed (log noise), but the trace-based onset was correctly preferred.",
+  "denials": 0
+}
