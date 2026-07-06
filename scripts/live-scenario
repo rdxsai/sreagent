@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# Run one live scenario end to end: inject + soak, agent eval, flag reset.
+# Usage: scripts/live-scenario <spec_id>
+# Assumes the demo stack is up and a clean baseline (no flags on, no recent
+# incident) — check before invoking. Archives land in the printed run dir.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+PY="${PYTHON:-.venv/bin/python}"
+SPEC="$1"
+export SENTINEL_OTEL_FLAGD_UI_BASE_URL="${SENTINEL_OTEL_FLAGD_UI_BASE_URL:-http://localhost:8081/feature}"
+
+OUT=$("$PY" -m labs.otel.live_incident "$SPEC" --run-dir runs/live)
+echo "$OUT"
+RUN_DIR=$(echo "$OUT" | sed -n 's/.*run dir: //p')
+
+"$PY" -m sentinel_tool_eval.live "$RUN_DIR" | tee "$RUN_DIR/eval_stdout.log"
+
+"$PY" - <<PYEOF
+from labs.otel.flagd import FlagdClient
+from labs.otel.live_incident import SPECS
+FlagdClient().set_flag_variant(SPECS["$SPEC"].raw_flag_key, "off")
+print("flag reset to off")
+PYEOF
+echo "done: $RUN_DIR"
