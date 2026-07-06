@@ -47,6 +47,13 @@ def grade(report: dict[str, Any] | None, truth: PrivateTruth) -> dict[str, Any]:
     if truth.root_cause.kind == "service":
         accepted = truth.accepted_services or [truth.root_cause.service]
         location_correct = kind_ok and rc.get("service") in accepted
+        # A multi-service fault reported as the edge between two accepted
+        # services names the same fault location; count it.
+        if not location_correct and truth.accepted_services and rc.get("kind") == "edge":
+            location_correct = (
+                rc.get("caller") in truth.accepted_services
+                and rc.get("callee") in truth.accepted_services
+            )
     elif truth.root_cause.kind == "edge":
         location_correct = (
             kind_ok

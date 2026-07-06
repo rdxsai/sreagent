@@ -108,3 +108,30 @@ def test_without_accepted_services_location_stays_exact_match():
         "ruled_out_change_ids": ["chg_0001"],
     }
     assert grade(report, truth)["location_correct"] is False
+
+
+def test_edge_report_accepted_when_both_endpoints_in_accepted_services():
+    from sentinel.fixtures.schemas import PrivateTruth
+
+    truth = PrivateTruth.model_validate(
+        {
+            "scenario_id": "llm_live",
+            "injection": {"raw_flag_key": "llmRateLimitError", "variant": "on", "enabled_at_second": 300},
+            "root_cause": {"kind": "service", "type": "rate_limit_errors", "service": "llm"},
+            "culprit_change_id": "chg_6003",
+            "expected_evidence": ["429s"],
+            "decoy_change_ids": ["chg_6001"],
+            "accepted_services": ["llm", "product-reviews"],
+        }
+    )
+    edge_report = {
+        "root_cause": {"kind": "edge", "type": "rate_limit", "caller": "product-reviews", "callee": "llm"},
+        "culprit_change_id": "chg_6003",
+        "ruled_out_change_ids": ["chg_6001"],
+    }
+    assert grade(edge_report, truth)["location_correct"] is True
+    outside_edge = {
+        **edge_report,
+        "root_cause": {"kind": "edge", "type": "rate_limit", "caller": "frontend", "callee": "llm"},
+    }
+    assert grade(outside_edge, truth)["location_correct"] is False
