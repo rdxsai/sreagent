@@ -30,7 +30,9 @@ from sentinel.tools.store import _SEVERITY_RANK, callee_from, filter_spans
 log = structlog.get_logger("sentinel.newrelic")
 
 _INGEST_LAG_MS = 30_000
-_CHANGE_LOOKBACK_MS = 3_600_000
+# Covers authored change offsets (within the baseline) without pulling in a
+# prior scenario's changes from the same environment.
+_CHANGE_LOOKBACK_MS = 600_000
 _MIN_CHUNK_MS = 2_000
 _PAGE_LIMIT = 5_000
 
