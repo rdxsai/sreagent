@@ -53,6 +53,12 @@ _PAYMENT_DECOYS = (
     LiveChange("chg_1004", "currency", "runtime_config_change", "currency rate cache TTL changed", ("rate_cache",), -120),
 )
 
+_RECOMMENDATION_DECOYS = (
+    LiveChange("chg_3001", "frontend", "deploy", "frontend homepage layout updated", ("layout",), -110),
+    LiveChange("chg_3002", "product-catalog", "runtime_config_change", "product catalog page size adjusted", ("page_size",), -50),
+    LiveChange("chg_3004", "ad", "runtime_config_change", "ad rotation interval changed", ("rotation",), 30),
+)
+
 _KAFKA_DECOYS = (
     LiveChange("chg_2001", "frontend", "deploy", "frontend banner assets updated", ("banner",), -100),
     LiveChange("chg_2002", "shipping", "runtime_config_change", "shipping rate table updated", ("rate_table",), -60),
@@ -98,6 +104,25 @@ SPECS: dict[str, LiveScenarioSpec] = {
         # The injected code lives in checkout (producer flood) and
         # fraud-detection (consumer sleep); kafka is where the backlog shows.
         accepted_services=("kafka", "fraud-detection", "checkout"),
+    ),
+    "recommendation_cache_failure_live_001": LiveScenarioSpec(
+        id="recommendation_cache_failure_live_001",
+        raw_flag_key="recommendationCacheFailure",
+        variant="on",  # verified against pinned demo.flagd.json: variants {on, off}
+        symptom="Product recommendations are gradually slowing down across the storefront.",
+        alertname="RecommendationLatencyDegradation",
+        root_cause={"kind": "service", "type": "cache_leak", "service": "recommendation",
+                    "caller": None, "callee": None},
+        culprit=LiveChange("chg_3003", "recommendation", "runtime_config_change",
+                           "recommendation cache configuration changed",
+                           ("cache", "eviction_policy"), 0),
+        decoys=_RECOMMENDATION_DECOYS,
+        expected_evidence=(
+            "recommendation latency climbs gradually after onset",
+            "recommendation memory usage grows over the window",
+            "cache miss logs increase and product-catalog call volume rises",
+        ),
+        soak_s=600,  # gradual leak: needs time to become visible
     ),
 }
 
