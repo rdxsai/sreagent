@@ -1,0 +1,16 @@
+
+=== recommendation_cache_failure_live_001: WRONG ===
+  location=False culprit=False decoys_ruled_out=False type_match=False
+  reported: {'kind': 'service', 'type': 'error', 'service': 'frontend', 'caller': None, 'callee': None} culprit=chg_3001 ruled_out=['chg_2001', 'chg_2002', 'chg_2003', 'chg_2004', 'chg_3002', 'chg_3003', 'chg_3004']
+  stop=reported iterations=11 tool_calls=89 (manager=19 workers=70) subagents=6 tool_errors=0 hook_denials=0
+  manager_calls={'traces_build_topology': 1, 'traces_first_error_time': 1, 'metrics_summary_all': 1, 'traces_error_origin': 1, 'topology_compare': 1, 'correlate_onset_consensus': 1, 'traces_span_tree': 1, 'metrics_top_movers': 2, 'investigate_parallel': 1, 'correlate_attribute_fault': 1, 'changes_rank_culprit': 1, 'changes_search': 2, 'investigate_change': 2, 'report_build_evidence': 1, 'report_self_check': 1, 'report_root_cause': 1}
+  worker_calls={'traces_first_error_time': 4, 'traces_error_origin': 6, 'traces_service_summary': 3, 'correlate_signals': 7, 'changes_rank_culprit': 6, 'report_finding': 4, 'metrics_summary_all': 3, 'correlate_onset_consensus': 5, 'topology_dependencies': 2, 'traces_error_summary': 3, 'hypothesis_gather_evidence': 2, 'traces_find': 3, 'changes_search': 5, 'hypothesis_rule_out': 4, 'correlate_metric_to_traces': 2, 'metrics_top_movers': 1, 'traces_span_tree': 4, 'topology_locate_origin': 1, 'correlate_attribute_fault': 2, 'report_change_verdict': 2, 'correlate_timeline': 1}
+    finding: recommendation is_origin=False fault=none suspect=None conf=0.97
+    finding: fraud-detection is_origin=False fault=none suspect=None conf=0.95
+    finding: ad is_origin=False fault=none suspect=None conf=0.92
+    finding: frontend is_origin=True fault=error suspect=chg_3001 conf=0.9
+  tokens manager(opus): in=60102 out=3623 cache_read=109467 | workers(sonnet): in=79408 out=8946 cache_read=284245 | est_cost=$1.1560
+  feedback:
+    The investigation flow worked well. The tools correctly identified frontend as the error origin. The main challenge was the change attribution — both frontend changes were flagged as non-culprits by investigate_change because the diff_touches ("layout") didn't semantically match tcp.connect errors. In practice, a frontend deploy touching "layout" could absolutely reconfigure service mesh settings, gRPC stubs, or environment variables that affect connectivity. The investigate_change tool was too literal in its content matching. The timing + service correlation (only pre-onset change on the faulting service) is the stronger signal here. The correlate_attribute_fault tool's service vs edge classification was debatable — frontend server spans error because the handler fails, but the underlying issue is connectivity to recommendation. The tool chose "service" which seems right since the fault is in frontend's own deployment.
+window export: {'spans': 209510, 'logs': 5000, 'metrics': 6276, 'changes': 8}
+wall_time=952s nrql_queries=295 cache_hits=150 retries=2

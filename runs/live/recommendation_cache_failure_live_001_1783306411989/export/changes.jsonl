@@ -1,0 +1,8 @@
+{"diff_touches": ["retry_budget"], "id": "chg_2004", "kind": "runtime_config_change", "service": "payment", "summary": "payment retry budget adjusted", "time": 0}
+{"diff_touches": ["consumer_delay", "queue_capacity"], "id": "chg_2003", "kind": "runtime_config_change", "service": "kafka", "summary": "queue consumer configuration changed", "time": 0}
+{"diff_touches": ["rate_table"], "id": "chg_2002", "kind": "runtime_config_change", "service": "shipping", "summary": "shipping rate table updated", "time": 0}
+{"diff_touches": ["banner"], "id": "chg_2001", "kind": "deploy", "service": "frontend", "summary": "frontend banner assets updated", "time": 0}
+{"diff_touches": ["layout"], "id": "chg_3001", "kind": "deploy", "service": "frontend", "summary": "frontend homepage layout updated", "time": 190}
+{"diff_touches": ["page_size"], "id": "chg_3002", "kind": "runtime_config_change", "service": "product-catalog", "summary": "product catalog page size adjusted", "time": 250}
+{"diff_touches": ["cache", "eviction_policy"], "id": "chg_3003", "kind": "runtime_config_change", "service": "recommendation", "summary": "recommendation cache configuration changed", "time": 300}
+{"diff_touches": ["rotation"], "id": "chg_3004", "kind": "runtime_config_change", "service": "ad", "summary": "ad rotation interval changed", "time": 330}

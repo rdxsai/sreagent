@@ -1,0 +1,296 @@
+{
+  "scenario_id": "recommendation_cache_failure_live_001",
+  "grade": {
+    "correct": false,
+    "location_correct": false,
+    "culprit_correct": false,
+    "decoys_ruled_out": false,
+    "type_match": false,
+    "reported": {
+      "root_cause": {
+        "kind": "service",
+        "type": "error",
+        "service": "frontend",
+        "caller": null,
+        "callee": null
+      },
+      "culprit_change_id": "chg_3001",
+      "ruled_out_change_ids": [
+        "chg_2001",
+        "chg_2002",
+        "chg_2003",
+        "chg_2004",
+        "chg_3002",
+        "chg_3003",
+        "chg_3004"
+      ]
+    },
+    "truth": {
+      "root_cause": {
+        "kind": "service",
+        "type": "cache_leak",
+        "service": "recommendation"
+      },
+      "culprit_change_id": "chg_3003",
+      "decoy_change_ids": [
+        "chg_3001",
+        "chg_3002",
+        "chg_3004"
+      ]
+    }
+  },
+  "report": {
+    "root_cause": {
+      "kind": "service",
+      "type": "error",
+      "service": "frontend",
+      "caller": null,
+      "callee": null
+    },
+    "culprit_change_id": "chg_3001",
+    "ruled_out_change_ids": [
+      "chg_2001",
+      "chg_2002",
+      "chg_2003",
+      "chg_2004",
+      "chg_3002",
+      "chg_3003",
+      "chg_3004"
+    ],
+    "evidence": [
+      "frontend own server spans error (114 post-onset): service-fault signal",
+      "Trace 0186112de6278d738f00e12ec70f38ba shows frontend tcp.connect errors when calling recommendation ListRecommendations",
+      "recommendation service is healthy: 0 server errors, 0% error rate, normal latency",
+      "chg_3001 (frontend homepage layout deploy) at t=190 is the only pre-onset change on the faulting service, 44s before first error at t=234",
+      "chg_3002, chg_3003, chg_3004 all occur AFTER onset (t=250, 300, 330) and are ruled out as non-causal",
+      "chg_2001-2004 at t=0 are 234s before onset on unrelated services/components (banner, payment, kafka, shipping)",
+      "frontend error rate shifted from 0.03% to 0.58% post-onset"
+    ],
+    "timeline": [
+      {
+        "second": 0,
+        "kind": "change",
+        "detail": "chg_2001-chg_2004: baseline changes on frontend(banner), payment, kafka, shipping"
+      },
+      {
+        "second": 190,
+        "kind": "change",
+        "detail": "chg_3001: frontend homepage layout deploy"
+      },
+      {
+        "second": 234,
+        "kind": "onset",
+        "detail": "First error span: frontend tcp.connect failures to recommendation service"
+      },
+      {
+        "second": 250,
+        "kind": "change",
+        "detail": "chg_3002: product-catalog page size adjusted (post-onset, ruled out)"
+      },
+      {
+        "second": 300,
+        "kind": "change",
+        "detail": "chg_3003: recommendation cache config changed (post-onset, ruled out)"
+      },
+      {
+        "second": 330,
+        "kind": "change",
+        "detail": "chg_3004: ad rotation interval changed (post-onset, ruled out)"
+      },
+      {
+        "second": 360,
+        "kind": "alert",
+        "detail": "UserFacingDegradation alert fires"
+      }
+    ]
+  },
+  "calls": [
+    "traces_build_topology",
+    "traces_first_error_time",
+    "metrics_summary_all",
+    "traces_error_origin",
+    "topology_compare",
+    "correlate_onset_consensus",
+    "traces_span_tree",
+    "metrics_top_movers",
+    "metrics_top_movers",
+    "investigate_parallel",
+    "correlate_attribute_fault",
+    "changes_rank_culprit",
+    "changes_search",
+    "investigate_change",
+    "investigate_change",
+    "changes_search",
+    "report_build_evidence",
+    "report_self_check",
+    "report_root_cause"
+  ],
+  "worker_calls": [
+    "traces_first_error_time",
+    "traces_error_origin",
+    "traces_service_summary",
+    "correlate_signals",
+    "changes_rank_culprit",
+    "report_finding",
+    "traces_first_error_time",
+    "metrics_summary_all",
+    "correlate_onset_consensus",
+    "traces_error_origin",
+    "correlate_signals",
+    "topology_dependencies",
+    "traces_error_summary",
+    "hypothesis_gather_evidence",
+    "traces_find",
+    "changes_rank_culprit",
+    "changes_search",
+    "traces_service_summary",
+    "hypothesis_rule_out",
+    "report_finding",
+    "traces_first_error_time",
+    "traces_error_origin",
+    "metrics_summary_all",
+    "correlate_signals",
+    "traces_service_summary",
+    "changes_rank_culprit",
+    "topology_dependencies",
+    "changes_search",
+    "hypothesis_rule_out",
+    "hypothesis_rule_out",
+    "correlate_metric_to_traces",
+    "metrics_top_movers",
+    "traces_span_tree",
+    "correlate_onset_consensus",
+    "correlate_metric_to_traces",
+    "traces_find",
+    "report_finding",
+    "traces_first_error_time",
+    "metrics_summary_all",
+    "correlate_onset_consensus",
+    "correlate_signals",
+    "traces_error_origin",
+    "traces_span_tree",
+    "traces_error_summary",
+    "topology_locate_origin",
+    "changes_rank_culprit",
+    "changes_search",
+    "hypothesis_gather_evidence",
+    "hypothesis_rule_out",
+    "correlate_attribute_fault",
+    "report_finding",
+    "changes_search",
+    "correlate_onset_consensus",
+    "traces_error_origin",
+    "traces_span_tree",
+    "correlate_signals",
+    "changes_rank_culprit",
+    "traces_error_summary",
+    "correlate_signals",
+    "correlate_attribute_fault",
+    "report_change_verdict",
+    "changes_search",
+    "correlate_onset_consensus",
+    "traces_error_origin",
+    "traces_span_tree",
+    "changes_rank_culprit",
+    "traces_find",
+    "correlate_signals",
+    "correlate_timeline",
+    "report_change_verdict"
+  ],
+  "internal_calls": [],
+  "subagents": 6,
+  "findings": [
+    {
+      "service": "recommendation",
+      "is_origin": false,
+      "fault_type": "none",
+      "own_server_errors": 0,
+      "shifted_signals": [],
+      "suspect_change_id": null,
+      "confidence": 0.97,
+      "evidence": [
+        "recommendation has 0 server error spans out of 4,866 total spans \u2014 zero own-fault errors",
+        "request_error_rate pre/post onset: 0.0 / 0.0 (no shift)",
+        "latency_p95_ms pre/post onset: 43.2ms / 34.5ms (no adverse shift; slight improvement)",
+        "changes_rank_culprit returned no changes on recommendation before onset; nearest culprit changes are on frontend (chg_3001), payment, kafka, and shipping",
+        "traces_error_origin attributed fault to frontend/frontend-proxy (internal span, depth 7), not recommendation"
+      ]
+    },
+    {
+      "service": "fraud-detection",
+      "is_origin": false,
+      "fault_type": "none",
+      "own_server_errors": 0,
+      "shifted_signals": [
+        "request_error_rate",
+        "latency_p95_ms"
+      ],
+      "suspect_change_id": null,
+      "confidence": 0.95,
+      "evidence": [
+        "fraud-detection has zero erroring server spans after onset (second 234); traces_service_summary confirms error_rate=0.0 and server_error_spans=0 out of 44 total spans",
+        "topology_dependencies shows fraud-detection has NO callers and NO callees \u2014 it is fully isolated in the call graph and cannot propagate or receive errors from other services",
+        "traces_error_summary (post-onset) lists no fraud-detection entries; all server/client errors belong to frontend and frontend-proxy",
+        "changes_search for fraud-detection returns zero changes \u2014 there is no recent deployment or config change on this service",
+        "changes_rank_culprit finds no fraud-detection changes in the ranked list; only frontend, payment, kafka, and shipping have pre-onset changes",
+        "Metric shifts (error_rate 0\u21926.25%, latency 11ms\u21923901ms) appear to be a metric artifact or noise \u2014 they are contradicted by the complete absence of any erroring spans at the trace level"
+      ]
+    },
+    {
+      "service": "ad",
+      "is_origin": false,
+      "fault_type": "none",
+      "own_server_errors": 0,
+      "shifted_signals": [
+        "latency_p95_ms"
+      ],
+      "suspect_change_id": null,
+      "confidence": 0.92,
+      "evidence": [
+        "ad has zero server-error spans; traces_service_summary confirms server_error_spans=0",
+        "ad's only error span is a CLIENT call to flagd.evaluation.v2.Service/EventStream (600s duration), not a server-side failure",
+        "ad's actual GetAds server spans are all STATUS=OK with normal latency (2\u201325ms)",
+        "The p95 latency shift (21ms \u2192 3900ms) is inflated by the single long-running flagd EventStream client span, not by ad's own work",
+        "ad has no callees in the service topology \u2014 it is a leaf service called only by frontend",
+        "The only ad-scoped change (chg_3004, 'ad rotation interval changed') is at second 330, AFTER the onset at 234 \u2014 ruled out as a cause",
+        "Fault origin is elsewhere (frontend/payment chain); ad is not a propagation victim in the error path"
+      ]
+    },
+    {
+      "service": "frontend",
+      "is_origin": true,
+      "fault_type": "error",
+      "own_server_errors": 114,
+      "shifted_signals": [
+        "request_error_rate"
+      ],
+      "suspect_change_id": "chg_3001",
+      "confidence": 0.9,
+      "evidence": [
+        "traces_error_origin classifies fault as service fault at frontend: deepest error frontier of 4 spans at depth 7 with erroring server spans on frontend",
+        "topology_locate_origin confirms frontend as origin: terminal callee on path frontend-proxy->frontend has own server errors (True)",
+        "correlate_attribute_fault: 114 frontend server error spans post-onset, confidence 0.9 that frontend's own work failed",
+        "Trace 0186112de6278d738f00e12ec70f38ba shows tcp.connect internal spans erroring within frontend when calling oteldemo.RecommendationService/ListRecommendations",
+        "changes_rank_culprit top hit: chg_3001 (frontend homepage layout deploy at t=190, only 44s before onset at t=234, score 10.812)",
+        "hypothesis_gather_evidence corroborates chg_3001 as nearest change on suspected service with supported=true, confidence 0.9"
+      ]
+    }
+  ],
+  "tool_errors": 0,
+  "iterations": 11,
+  "stop": "reported",
+  "usage": {
+    "input": 60102,
+    "output": 3623,
+    "cache_read": 109467,
+    "cache_write": 24326
+  },
+  "worker_usage": {
+    "input": 79408,
+    "output": 8946,
+    "cache_read": 284245,
+    "cache_write": 26799
+  },
+  "feedback": "The investigation flow worked well. The tools correctly identified frontend as the error origin. The main challenge was the change attribution \u2014 both frontend changes were flagged as non-culprits by investigate_change because the diff_touches (\"layout\") didn't semantically match tcp.connect errors. In practice, a frontend deploy touching \"layout\" could absolutely reconfigure service mesh settings, gRPC stubs, or environment variables that affect connectivity. The investigate_change tool was too literal in its content matching. The timing + service correlation (only pre-onset change on the faulting service) is the stronger signal here. The correlate_attribute_fault tool's service vs edge classification was debatable \u2014 frontend server spans error because the handler fails, but the underlying issue is connectivity to recommendation. The tool chose \"service\" which seems right since the fault is in frontend's own deployment.",
+  "denials": 0
+}
