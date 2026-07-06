@@ -1,0 +1,77 @@
+{
+  "scenario_id": "cart_failure_live_001",
+  "diagnosis": {
+    "correct": true,
+    "location_correct": true,
+    "culprit_correct": true,
+    "decoys_ruled_out": true,
+    "type_match": false,
+    "reported": {
+      "root_cause": {
+        "kind": "service",
+        "type": "error",
+        "service": "cart",
+        "caller": null,
+        "callee": null
+      },
+      "culprit_change_id": "chg_12003",
+      "ruled_out_change_ids": [
+        "chg_11002",
+        "chg_11003",
+        "chg_11004",
+        "chg_12001",
+        "chg_12002",
+        "chg_12004"
+      ]
+    },
+    "truth": {
+      "root_cause": {
+        "kind": "service",
+        "type": "datastore_connection_failure",
+        "service": "cart"
+      },
+      "culprit_change_id": "chg_12003",
+      "decoy_change_ids": [
+        "chg_12001",
+        "chg_12002",
+        "chg_12004"
+      ]
+    }
+  },
+  "speed": {
+    "wall_time_s": 156.9,
+    "iterations": 7
+  },
+  "cost": {
+    "est_cost_usd": 0.6735,
+    "tool_calls": 43,
+    "manager_calls": 12,
+    "worker_calls": 31,
+    "tokens_manager": {
+      "input": 22390,
+      "output": 2547,
+      "cache_read": 72978,
+      "cache_write": 12163
+    },
+    "tokens_workers": {
+      "input": 70022,
+      "output": 4100,
+      "cache_read": 129727,
+      "cache_write": 19958
+    }
+  },
+  "backend": {
+    "nrql_queries": 75,
+    "nrql_cache_hits": 61,
+    "nrql_retries": 0,
+    "hydration_pages": 34,
+    "hydrated_spans": 80870
+  },
+  "reliability": {
+    "tool_errors": 0,
+    "hook_denials": 0,
+    "stop": "reported",
+    "subagents": 2,
+    "completed": true
+  }
+}

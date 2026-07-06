@@ -1,0 +1,14 @@
+
+=== cart_failure_live_001: CORRECT ===
+  location=True culprit=True decoys_ruled_out=True type_match=False
+  reported: {'kind': 'service', 'type': 'error', 'service': 'cart', 'caller': None, 'callee': None} culprit=chg_12003 ruled_out=['chg_11002', 'chg_11003', 'chg_11004', 'chg_12001', 'chg_12002', 'chg_12004']
+  stop=reported iterations=7 tool_calls=43 (manager=12 workers=31) subagents=2 tool_errors=0 hook_denials=0
+  manager_calls={'traces_build_topology': 1, 'metrics_summary_all': 1, 'traces_first_error_time': 1, 'traces_error_origin': 1, 'correlate_onset_consensus': 1, 'topology_compare': 1, 'investigate_parallel': 1, 'changes_rank_culprit': 1, 'report_build_evidence': 1, 'traces_find': 1, 'report_self_check': 1, 'report_root_cause': 1}
+  worker_calls={'traces_first_error_time': 2, 'metrics_summary_all': 1, 'correlate_signals': 2, 'traces_error_origin': 2, 'changes_rank_culprit': 2, 'traces_service_summary': 2, 'changes_search': 2, 'hypothesis_gather_evidence': 2, 'traces_error_summary': 1, 'topology_dependencies': 1, 'correlate_attribute_fault': 1, 'correlate_timeline': 3, 'report_finding': 2, 'correlate_onset_consensus': 1, 'traces_get_trace': 1, 'logs_error_clusters': 1, 'changes_lookback': 2, 'hypothesis_rule_out': 1, 'traces_find': 2}
+    finding: checkout is_origin=False fault=error suspect=chg_11003 conf=0.9
+    finding: cart is_origin=True fault=error suspect=chg_12003 conf=0.93
+  tokens manager(opus): in=22390 out=2547 cache_read=72978 | workers(sonnet): in=70022 out=4100 cache_read=129727 | est_cost=$0.6735
+  feedback:
+    The investigation flow worked well. traces_error_origin correctly identified cart as the deepest error frontier. The parallel investigation confirmed cart as origin and checkout as victim cleanly. One nuance: the global traces_first_error_time returned t=92 from frontend-proxy (noise), while the real cart onset was t=403. The investigator subagent correctly identified the service-specific onset. The changes_rank_culprit tool correctly scored chg_12003 highest due to service match. The diff_touches (connection_string, store_host) directly explained the Redis connectivity failure — content-based matching was key.
+window export: {'spans': 80870, 'logs': 4991, 'metrics': 3524, 'changes': 7}
+wall_time=157s nrql_queries=149 cache_hits=62 retries=0

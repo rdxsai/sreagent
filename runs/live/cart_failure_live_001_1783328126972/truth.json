@@ -1,0 +1,26 @@
+{
+  "scenario_id": "cart_failure_live_001",
+  "injection": {
+    "raw_flag_key": "cartFailure",
+    "variant": "on",
+    "enabled_at_second": 300
+  },
+  "root_cause": {
+    "kind": "service",
+    "type": "datastore_connection_failure",
+    "service": "cart",
+    "caller": null,
+    "callee": null
+  },
+  "culprit_change_id": "chg_12003",
+  "expected_evidence": [
+    "cart EmptyCart operations fail with connection errors after onset",
+    "checkout fails after payment succeeds on affected orders",
+    "symptoms begin after change chg_12003"
+  ],
+  "decoy_change_ids": [
+    "chg_12001",
+    "chg_12002",
+    "chg_12004"
+  ]
+}

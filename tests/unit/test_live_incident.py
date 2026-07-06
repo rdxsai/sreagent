@@ -74,3 +74,34 @@ def test_run_live_incident_orchestration(tmp_path: Path):
     assert slept == [spec.soak_s]
     assert (run_dir / "truth.json").exists()
     assert (run_dir / "run_meta.json").exists()
+
+
+def test_targeting_patch_applied_when_spec_requires_it(tmp_path: Path):
+    spec = SPECS["product_catalog_failure_live_001"]
+    doc = {"flags": {"productCatalogFailure": {
+        "defaultVariant": "off",
+        "variants": {"on": True, "off": False},
+        "targeting": {"if": [{"==": [{"var": "product_id"}, "OLJCESPC7Z"]}, "off", "off"]},
+    }}}
+
+    class FakeFlagd:
+        def __init__(self):
+            self.doc = doc
+            self.written = None
+
+        def set_flag_variant(self, key, variant):
+            self.doc["flags"][key]["defaultVariant"] = variant
+
+        def read(self):
+            return self.doc
+
+        def write(self, document):
+            self.written = document
+
+    flagd = FakeFlagd()
+    run_live_incident(
+        spec, tmp_path, flagd=flagd,
+        poster=lambda events: None, sleeper=lambda s: None,
+        clock_ms=lambda: INJ,
+    )
+    assert flagd.written["flags"]["productCatalogFailure"]["targeting"]["if"][1] == "on"

@@ -1,0 +1,218 @@
+{
+  "scenario_id": "cart_failure_live_001",
+  "grade": {
+    "correct": true,
+    "location_correct": true,
+    "culprit_correct": true,
+    "decoys_ruled_out": true,
+    "type_match": false,
+    "reported": {
+      "root_cause": {
+        "kind": "service",
+        "type": "error",
+        "service": "cart",
+        "caller": null,
+        "callee": null
+      },
+      "culprit_change_id": "chg_12003",
+      "ruled_out_change_ids": [
+        "chg_11002",
+        "chg_11003",
+        "chg_11004",
+        "chg_12001",
+        "chg_12002",
+        "chg_12004"
+      ]
+    },
+    "truth": {
+      "root_cause": {
+        "kind": "service",
+        "type": "datastore_connection_failure",
+        "service": "cart"
+      },
+      "culprit_change_id": "chg_12003",
+      "decoy_change_ids": [
+        "chg_12001",
+        "chg_12002",
+        "chg_12004"
+      ]
+    }
+  },
+  "report": {
+    "root_cause": {
+      "kind": "service",
+      "type": "error",
+      "service": "cart",
+      "caller": null,
+      "callee": null
+    },
+    "culprit_change_id": "chg_12003",
+    "ruled_out_change_ids": [
+      "chg_11002",
+      "chg_11003",
+      "chg_11004",
+      "chg_12001",
+      "chg_12002",
+      "chg_12004"
+    ],
+    "evidence": [
+      "cart own server spans error (5 spans on POST /oteldemo.CartService/EmptyCart), first at t=403 \u2014 a service fault",
+      "Error logs from cart: 'Wasn't able to connect to redis' \u2014 5 occurrences, all from cart",
+      "checkout\u2192cart is the only new error edge after onset (topology_compare)",
+      "checkout has 0 own server errors; all its errors are client-span failures calling cart (propagated)",
+      "chg_12003 'cart store connection string updated' (diff_touches: connection_string, store_host) deployed at t=300, 103s before cart's first error at t=403",
+      "chg_12003 touches connection_string and store_host \u2014 directly explains Redis connectivity failure",
+      "Other cart-era changes (chg_12001 frontend, chg_12002 checkout, chg_12004 payment) don't touch cart's store config",
+      "Pre-window changes (chg_11002 payment, chg_11003 checkout, chg_11004 currency) preceded healthy baseline"
+    ],
+    "timeline": [
+      {
+        "second": 0,
+        "kind": "change",
+        "detail": "chg_11004 on currency: currency rate cache TTL changed"
+      },
+      {
+        "second": 0,
+        "kind": "change",
+        "detail": "chg_11003 on checkout: payment client endpoint configuration changed"
+      },
+      {
+        "second": 0,
+        "kind": "change",
+        "detail": "chg_11002 on payment: payment provider credentials rotated"
+      },
+      {
+        "second": 215,
+        "kind": "change",
+        "detail": "chg_12001 on frontend: frontend cart page updated"
+      },
+      {
+        "second": 260,
+        "kind": "change",
+        "detail": "chg_12002 on checkout: checkout order pipeline reordered"
+      },
+      {
+        "second": 300,
+        "kind": "change",
+        "detail": "chg_12003 on cart: cart store connection string updated (CULPRIT)"
+      },
+      {
+        "second": 335,
+        "kind": "change",
+        "detail": "chg_12004 on payment: payment retry budget adjusted"
+      },
+      {
+        "second": 403,
+        "kind": "onset",
+        "detail": "cart first server error span \u2014 POST /oteldemo.CartService/EmptyCart \u2014 cannot connect to redis"
+      }
+    ]
+  },
+  "calls": [
+    "traces_build_topology",
+    "metrics_summary_all",
+    "traces_first_error_time",
+    "traces_error_origin",
+    "correlate_onset_consensus",
+    "topology_compare",
+    "investigate_parallel",
+    "changes_rank_culprit",
+    "report_build_evidence",
+    "traces_find",
+    "report_self_check",
+    "report_root_cause"
+  ],
+  "worker_calls": [
+    "traces_first_error_time",
+    "metrics_summary_all",
+    "correlate_signals",
+    "traces_error_origin",
+    "changes_rank_culprit",
+    "traces_service_summary",
+    "changes_search",
+    "hypothesis_gather_evidence",
+    "traces_error_summary",
+    "topology_dependencies",
+    "correlate_attribute_fault",
+    "correlate_timeline",
+    "report_finding",
+    "traces_first_error_time",
+    "traces_error_origin",
+    "traces_service_summary",
+    "correlate_onset_consensus",
+    "correlate_signals",
+    "changes_rank_culprit",
+    "changes_search",
+    "traces_get_trace",
+    "correlate_timeline",
+    "logs_error_clusters",
+    "changes_lookback",
+    "changes_lookback",
+    "hypothesis_rule_out",
+    "traces_find",
+    "traces_find",
+    "correlate_timeline",
+    "hypothesis_gather_evidence",
+    "report_finding"
+  ],
+  "internal_calls": [],
+  "subagents": 2,
+  "findings": [
+    {
+      "service": "checkout",
+      "is_origin": false,
+      "fault_type": "error",
+      "own_server_errors": 0,
+      "shifted_signals": [
+        "request_error_rate"
+      ],
+      "suspect_change_id": "chg_11003",
+      "confidence": 0.9,
+      "evidence": [
+        "checkout has 0 own server error spans \u2014 its internal work is not failing",
+        "All 5 post-onset error spans from checkout are CLIENT-role calls to 'cart'",
+        "cart's own server spans show 5 errors (0.9 confidence service fault at cart per correlate_attribute_fault)",
+        "checkout error_rate shifted from 0% pre-onset to 4.2% post-onset \u2014 purely due to propagated cart failures",
+        "traces_error_origin confirms cart as the deepest error frontier (service fault)",
+        "Only checkout change before onset is chg_11003 ('payment client endpoint configuration changed', touches payment_endpoint/grpc_target) \u2014 affects payment path, not the cart call path where errors appear",
+        "chg_12002 ('checkout order pipeline reordered') is post-onset (t=260) and cannot be causal"
+      ]
+    },
+    {
+      "service": "cart",
+      "is_origin": true,
+      "fault_type": "error",
+      "own_server_errors": 5,
+      "shifted_signals": [
+        "request_error_rate"
+      ],
+      "suspect_change_id": "chg_12003",
+      "confidence": 0.93,
+      "evidence": [
+        "cart has 5 erroring server spans, all on POST /oteldemo.CartService/EmptyCart (first at t=403)",
+        "traces_error_origin classified cart as the deepest error frontier (service fault, not edge)",
+        "error log cluster: 'Wasn't able to connect to redis' \u2014 5 occurrences, all from cart service",
+        "chg_12003 'cart store connection string updated' (diff_touches: connection_string, store_host) deployed at t=300, 103s before cart's first error at t=403",
+        "correlate_timeline confirms chg_12003 is the only change preceding cart's own error onset",
+        "hypothesis_gather_evidence returned supported=true, confidence=0.9, naming chg_12003 as suspect"
+      ]
+    }
+  ],
+  "tool_errors": 0,
+  "iterations": 7,
+  "stop": "reported",
+  "usage": {
+    "input": 22390,
+    "output": 2547,
+    "cache_read": 72978,
+    "cache_write": 12163
+  },
+  "worker_usage": {
+    "input": 70022,
+    "output": 4100,
+    "cache_read": 129727,
+    "cache_write": 19958
+  },
+  "feedback": "The investigation flow worked well. traces_error_origin correctly identified cart as the deepest error frontier. The parallel investigation confirmed cart as origin and checkout as victim cleanly. One nuance: the global traces_first_error_time returned t=92 from frontend-proxy (noise), while the real cart onset was t=403. The investigator subagent correctly identified the service-specific onset. The changes_rank_culprit tool correctly scored chg_12003 highest due to service match. The diff_touches (connection_string, store_host) directly explained the Redis connectivity failure \u2014 content-based matching was key.",
+  "denials": 0
+}

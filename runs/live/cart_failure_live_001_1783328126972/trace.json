@@ -1,0 +1,44 @@
+{
+  "trace": [],
+  "findings": [
+    {
+      "service": "checkout",
+      "is_origin": false,
+      "fault_type": "error",
+      "own_server_errors": 0,
+      "shifted_signals": [
+        "request_error_rate"
+      ],
+      "suspect_change_id": "chg_11003",
+      "confidence": 0.9,
+      "evidence": [
+        "checkout has 0 own server error spans \u2014 its internal work is not failing",
+        "All 5 post-onset error spans from checkout are CLIENT-role calls to 'cart'",
+        "cart's own server spans show 5 errors (0.9 confidence service fault at cart per correlate_attribute_fault)",
+        "checkout error_rate shifted from 0% pre-onset to 4.2% post-onset \u2014 purely due to propagated cart failures",
+        "traces_error_origin confirms cart as the deepest error frontier (service fault)",
+        "Only checkout change before onset is chg_11003 ('payment client endpoint configuration changed', touches payment_endpoint/grpc_target) \u2014 affects payment path, not the cart call path where errors appear",
+        "chg_12002 ('checkout order pipeline reordered') is post-onset (t=260) and cannot be causal"
+      ]
+    },
+    {
+      "service": "cart",
+      "is_origin": true,
+      "fault_type": "error",
+      "own_server_errors": 5,
+      "shifted_signals": [
+        "request_error_rate"
+      ],
+      "suspect_change_id": "chg_12003",
+      "confidence": 0.93,
+      "evidence": [
+        "cart has 5 erroring server spans, all on POST /oteldemo.CartService/EmptyCart (first at t=403)",
+        "traces_error_origin classified cart as the deepest error frontier (service fault, not edge)",
+        "error log cluster: 'Wasn't able to connect to redis' \u2014 5 occurrences, all from cart service",
+        "chg_12003 'cart store connection string updated' (diff_touches: connection_string, store_host) deployed at t=300, 103s before cart's first error at t=403",
+        "correlate_timeline confirms chg_12003 is the only change preceding cart's own error onset",
+        "hypothesis_gather_evidence returned supported=true, confidence=0.9, naming chg_12003 as suspect"
+      ]
+    }
+  ]
+}

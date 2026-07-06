@@ -1,0 +1,7 @@
+{"diff_touches": ["rate_cache"], "id": "chg_11004", "kind": "runtime_config_change", "service": "currency", "summary": "currency rate cache TTL changed", "time": 0}
+{"diff_touches": ["payment_endpoint", "grpc_target"], "id": "chg_11003", "kind": "runtime_config_change", "service": "checkout", "summary": "payment client endpoint configuration changed", "time": 0}
+{"diff_touches": ["credentials"], "id": "chg_11002", "kind": "runtime_config_change", "service": "payment", "summary": "payment provider credentials rotated", "time": 0}
+{"diff_touches": ["cart_page"], "id": "chg_12001", "kind": "deploy", "service": "frontend", "summary": "frontend cart page updated", "time": 215}
+{"diff_touches": ["pipeline"], "id": "chg_12002", "kind": "runtime_config_change", "service": "checkout", "summary": "checkout order pipeline reordered", "time": 260}
+{"diff_touches": ["connection_string", "store_host"], "id": "chg_12003", "kind": "runtime_config_change", "service": "cart", "summary": "cart store connection string updated", "time": 300}
+{"diff_touches": ["retry_budget"], "id": "chg_12004", "kind": "runtime_config_change", "service": "payment", "summary": "payment retry budget adjusted", "time": 335}

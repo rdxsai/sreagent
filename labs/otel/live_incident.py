@@ -45,6 +45,11 @@ class LiveScenarioSpec:
     accepted_services: tuple[str, ...] | None = None
     baseline_s: int = 300
     soak_s: int = 300
+    # Some flags (productCatalogFailure at the pinned SHA) carry a targeting
+    # rule that returns "off" on both branches, so flipping defaultVariant is
+    # a no-op. When set, the injector rewrites the targeting rule's
+    # true-branch to this variant (and reset must restore it to "off").
+    targeting_true_variant: str | None = None
 
 
 _PAYMENT_DECOYS = (
@@ -363,7 +368,43 @@ SPECS: dict[str, LiveScenarioSpec] = {
         accepted_services=("frontend-proxy", "frontend"),
         soak_s=600,  # browser-driven traffic only; needs time to accumulate
     ),
+    "product_catalog_failure_live_001": LiveScenarioSpec(
+        id="product_catalog_failure_live_001",
+        raw_flag_key="productCatalogFailure",
+        variant="on",
+        symptom="One product page fails to load while the rest of the catalog works.",
+        alertname="UserFacingDegradation",
+        root_cause={"kind": "service", "type": "product_lookup_failure", "service": "product-catalog",
+                    "caller": None, "callee": None},
+        culprit=LiveChange("chg_14003", "product-catalog", "runtime_config_change",
+                           "product catalog data source mapping changed",
+                           ("data_source", "product_mapping"), 0),
+        decoys=(
+            LiveChange("chg_14001", "frontend", "deploy", "frontend product page template updated", ("product_template",), -85),
+            LiveChange("chg_14002", "recommendation", "runtime_config_change", "recommendation catalog sync interval changed", ("catalog_sync",), -45),
+            LiveChange("chg_14004", "image-provider", "deploy", "product image pack refreshed", ("images",), 40),
+        ),
+        expected_evidence=(
+            "GetProduct errors for a single product id after onset",
+            "callers touching that product fail while other products stay healthy",
+            "symptoms begin after change chg_14003",
+        ),
+        # Product-scoped fault: the flag's targeting rule gates by product_id.
+        targeting_true_variant="on",
+        soak_s=300,
+    ),
 }
+
+
+def set_targeting_true_variant(flagd: FlagdClient, raw_flag_key: str, variant: str) -> None:
+    """Rewrite a flag's targeting rule true-branch (demo.flagd.json shape:
+    targeting.if == [condition, true_variant, false_variant])."""
+    document = flagd.read()
+    flag = document.get("flags", {}).get(raw_flag_key)
+    if not flag or "targeting" not in flag or "if" not in flag["targeting"]:
+        raise RuntimeError(f"flag {raw_flag_key} has no targeting rule to patch")
+    flag["targeting"]["if"][1] = variant
+    flagd.write(document)
 
 
 def change_events_payload(spec: LiveScenarioSpec, injection_ms: int) -> list[dict]:
@@ -444,6 +485,8 @@ def run_live_incident(
     injection_ms = clock()
     poster(change_events_payload(spec, injection_ms))
     flagd.set_flag_variant(spec.raw_flag_key, spec.variant)
+    if spec.targeting_true_variant is not None:
+        set_targeting_true_variant(flagd, spec.raw_flag_key, spec.targeting_true_variant)
 
     run_dir = base_dir / f"{spec.id}_{injection_ms}"
     run_dir.mkdir(parents=True, exist_ok=True)
