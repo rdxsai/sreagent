@@ -109,8 +109,8 @@ SPECS: dict[str, LiveScenarioSpec] = {
         id="recommendation_cache_failure_live_001",
         raw_flag_key="recommendationCacheFailure",
         variant="on",  # verified against pinned demo.flagd.json: variants {on, off}
-        symptom="Product recommendations are gradually slowing down across the storefront.",
-        alertname="RecommendationLatencyDegradation",
+        symptom="Product recommendations are intermittently missing from the storefront.",
+        alertname="UserFacingDegradation",
         root_cause={"kind": "service", "type": "cache_leak", "service": "recommendation",
                     "caller": None, "callee": None},
         culprit=LiveChange("chg_3003", "recommendation", "runtime_config_change",
@@ -118,9 +118,9 @@ SPECS: dict[str, LiveScenarioSpec] = {
                            ("cache", "eviction_policy"), 0),
         decoys=_RECOMMENDATION_DECOYS,
         expected_evidence=(
-            "recommendation latency climbs gradually after onset",
-            "recommendation memory usage grows over the window",
-            "cache miss logs increase and product-catalog call volume rises",
+            "recommendation memory grows in a sawtooth as the process is OOM-killed and restarts",
+            "cache miss logs and repeated service startup logs after onset",
+            "callers see intermittent recommendation failures while the process is down",
         ),
         soak_s=600,  # gradual leak: needs time to become visible
     ),
