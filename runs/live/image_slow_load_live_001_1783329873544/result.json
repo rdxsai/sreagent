@@ -1,0 +1,267 @@
+{
+  "scenario_id": "image_slow_load_live_001",
+  "grade": {
+    "correct": true,
+    "location_correct": true,
+    "culprit_correct": true,
+    "decoys_ruled_out": true,
+    "type_match": true,
+    "reported": {
+      "root_cause": {
+        "kind": "service",
+        "type": "latency",
+        "service": "frontend-proxy",
+        "caller": null,
+        "callee": null
+      },
+      "culprit_change_id": "chg_13003",
+      "ruled_out_change_ids": [
+        "chg_14004",
+        "chg_14003",
+        "chg_14002",
+        "chg_14001",
+        "chg_13001",
+        "chg_13002",
+        "chg_13004"
+      ]
+    },
+    "truth": {
+      "root_cause": {
+        "kind": "service",
+        "type": "latency",
+        "service": "frontend-proxy"
+      },
+      "culprit_change_id": "chg_13003",
+      "decoy_change_ids": [
+        "chg_13001",
+        "chg_13002",
+        "chg_13004"
+      ]
+    }
+  },
+  "report": {
+    "root_cause": {
+      "kind": "service",
+      "type": "latency",
+      "service": "frontend-proxy",
+      "caller": null,
+      "callee": null
+    },
+    "culprit_change_id": "chg_13003",
+    "ruled_out_change_ids": [
+      "chg_14004",
+      "chg_14003",
+      "chg_14002",
+      "chg_14001",
+      "chg_13001",
+      "chg_13002",
+      "chg_13004"
+    ],
+    "evidence": [
+      "frontend-proxy p95 latency rose from 139.83ms to 5500.31ms after onset at second 300",
+      "chg_13003 on frontend-proxy at second 300: image route proxy fault filter configuration changed, touching fault_filter and image_route",
+      "Post-onset flagservice egress client spans from frontend-proxy show 3-20 second durations vs sub-millisecond pre-onset",
+      "No error rate increase (0% throughout) - pure latency fault consistent with delay fault injection via proxy fault filter",
+      "flagd-ui server spans remain fast (4ms) confirming the delay is injected at the proxy layer, not at the downstream service",
+      "All other changes are either on different services or after onset (chg_13004 at t=345)"
+    ],
+    "timeline": [
+      {
+        "second": 0,
+        "kind": "change",
+        "detail": "chg_14004 on image-provider: product image pack refreshed"
+      },
+      {
+        "second": 0,
+        "kind": "change",
+        "detail": "chg_14003 on product-catalog: product catalog data source mapping changed"
+      },
+      {
+        "second": 0,
+        "kind": "change",
+        "detail": "chg_14002 on recommendation: recommendation catalog sync interval changed"
+      },
+      {
+        "second": 0,
+        "kind": "change",
+        "detail": "chg_14001 on frontend: frontend product page template updated"
+      },
+      {
+        "second": 220,
+        "kind": "change",
+        "detail": "chg_13001 on image-provider: image provider asset pack refreshed"
+      },
+      {
+        "second": 260,
+        "kind": "change",
+        "detail": "chg_13002 on frontend: frontend product card layout updated"
+      },
+      {
+        "second": 300,
+        "kind": "change",
+        "detail": "chg_13003 on frontend-proxy: image route proxy fault filter configuration changed"
+      },
+      {
+        "second": 300,
+        "kind": "onset",
+        "detail": "Latency shift detected - frontend-proxy p95 jumps from 140ms to 5500ms"
+      },
+      {
+        "second": 345,
+        "kind": "change",
+        "detail": "chg_13004 on product-catalog: product image URL scheme changed"
+      }
+    ]
+  },
+  "calls": [
+    "traces_build_topology",
+    "traces_first_error_time",
+    "metrics_summary_all",
+    "traces_latency_origin",
+    "metrics_resource_saturation",
+    "metrics_top_movers",
+    "topology_critical_path",
+    "traces_slowest_operations",
+    "topology_dependencies",
+    "traces_find",
+    "correlate_metric_to_traces",
+    "traces_find",
+    "metrics_detect_shift",
+    "traces_find",
+    "traces_span_tree",
+    "correlate_onset_consensus",
+    "metrics_detect_shift",
+    "traces_find",
+    "investigate_parallel",
+    "traces_find",
+    "changes_search",
+    "traces_find",
+    "traces_span_tree",
+    "investigate_change",
+    "correlate_signals",
+    "report_build_evidence",
+    "report_self_check",
+    "report_root_cause"
+  ],
+  "worker_calls": [
+    "traces_first_error_time",
+    "metrics_summary_all",
+    "correlate_signals",
+    "traces_service_summary",
+    "changes_lookback",
+    "topology_dependencies",
+    "changes_rank_culprit",
+    "report_finding",
+    "traces_first_error_time",
+    "metrics_summary_all",
+    "correlate_signals",
+    "traces_error_origin",
+    "topology_dependencies",
+    "traces_find",
+    "changes_rank_culprit",
+    "changes_search",
+    "traces_service_summary",
+    "report_finding",
+    "traces_first_error_time",
+    "traces_error_origin",
+    "traces_service_summary",
+    "correlate_onset_consensus",
+    "correlate_signals",
+    "topology_dependencies",
+    "changes_rank_culprit",
+    "changes_search",
+    "hypothesis_rule_out",
+    "hypothesis_rule_out",
+    "traces_latency_origin",
+    "report_finding",
+    "changes_search",
+    "correlate_onset_consensus",
+    "correlate_signals",
+    "changes_rank_culprit",
+    "traces_latency_origin",
+    "metrics_top_movers",
+    "changes_lookback",
+    "traces_slowest_operations",
+    "traces_compare_pre_post",
+    "traces_span_tree",
+    "traces_find",
+    "traces_find",
+    "traces_span_tree",
+    "traces_span_tree",
+    "correlate_timeline",
+    "report_change_verdict"
+  ],
+  "internal_calls": [],
+  "subagents": 4,
+  "findings": [
+    {
+      "service": "flagd-ui",
+      "is_origin": false,
+      "fault_type": "none",
+      "own_server_errors": 0,
+      "shifted_signals": [],
+      "suspect_change_id": null,
+      "confidence": 0.98,
+      "evidence": [
+        "flagd-ui has 0 server error spans (total_spans=2, error_spans=0, server_error_spans=0) \u2014 no own-work failures at all.",
+        "All three signals (request_error_rate, latency_p95_ms, cpu_cores) show zero shift across the onset at second 62.",
+        "No changes were found on flagd-ui before the onset second (changes_lookback returned empty; changes_rank_culprit returned no flagd-ui entries).",
+        "flagd-ui is a leaf node with no callees \u2014 it cannot propagate a fault from a downstream dependency.",
+        "The incident's first error span originated in the payment service at second 62, entirely outside flagd-ui's blast radius."
+      ]
+    },
+    {
+      "service": "frontend-web",
+      "is_origin": false,
+      "fault_type": "none",
+      "own_server_errors": 0,
+      "shifted_signals": [
+        "latency_p95_ms"
+      ],
+      "suspect_change_id": null,
+      "confidence": 0.97,
+      "evidence": [
+        "frontend-web has zero server error spans and a 0.0% error rate \u2014 it is not producing its own failures.",
+        "p95 latency shifted from 222ms pre-onset to 3183ms post-onset (shifted=true), but this is purely a propagation effect from its downstream dependency chain (frontend-web \u2192 frontend-proxy \u2192 payment).",
+        "The true error origin was identified as an edge fault: payment (client) \u2192 unknown callee, with no erroring server spans anywhere in frontend-web's own work.",
+        "No change events exist for frontend-web at all (changes_search returned empty), so there is no suspect change to attribute.",
+        "topology_dependencies confirms frontend-web has no callers \u2014 it is the entry-point \u2014 and its only callee is frontend-proxy, which itself reflects the payment fault."
+      ]
+    },
+    {
+      "service": "frontend-proxy",
+      "is_origin": false,
+      "fault_type": "none",
+      "own_server_errors": 0,
+      "shifted_signals": [
+        "latency_p95_ms"
+      ],
+      "suspect_change_id": null,
+      "confidence": 0.97,
+      "evidence": [
+        "frontend-proxy has 0 server error spans and a 0.0 error rate \u2014 no own-fault signal",
+        "p95 latency rose from ~21ms to ~3218ms post-onset, but this is downstream propagation, not own work failing",
+        "traces_latency_origin identifies 'payment' as the true latency origin (self p95=600,002ms); frontend-proxy merely waits on it",
+        "traces_error_origin classifies the fault as an edge fault from 'payment' to an unknown callee \u2014 frontend-proxy is not involved in this path",
+        "The only frontend-proxy change (chg_13003: runtime_config_change on image_route fault_filter) occurred at second 300, AFTER the onset at second 62 \u2014 ruled out as a cause by timing"
+      ]
+    }
+  ],
+  "tool_errors": 0,
+  "iterations": 13,
+  "stop": "reported",
+  "usage": {
+    "input": 115065,
+    "output": 4414,
+    "cache_read": 145956,
+    "cache_write": 12163
+  },
+  "worker_usage": {
+    "input": 46977,
+    "output": 5654,
+    "cache_read": 167635,
+    "cache_write": 36778
+  },
+  "feedback": "The investigation was somewhat complex because the error-based onset (second 62, payment) was a red herring unrelated to the actual latency symptom. The subagents used the error onset and missed the latency issue entirely. I had to manually trace the latency path through the slowest operations and identify the flagservice egress as the bottleneck. The `traces_latency_origin` tool pointed to shipping (324ms) which wasn't the real issue - the 20-second flagservice egress calls dwarfed it but may have been missed because they're client spans on frontend-proxy rather than server spans on the callee. The `investigate_parallel` delegation was mostly wasted because the agents anchored on error onset. For latency incidents, the triage phase should anchor on `metrics_detect_shift` for latency rather than `traces_first_error_time`. The `investigate_change` tool was the most useful for confirming the culprit.",
+  "denials": 0
+}

@@ -1,0 +1,8 @@
+{"diff_touches": ["images"], "id": "chg_14004", "kind": "deploy", "service": "image-provider", "summary": "product image pack refreshed", "time": 0}
+{"diff_touches": ["data_source", "product_mapping"], "id": "chg_14003", "kind": "runtime_config_change", "service": "product-catalog", "summary": "product catalog data source mapping changed", "time": 0}
+{"diff_touches": ["catalog_sync"], "id": "chg_14002", "kind": "runtime_config_change", "service": "recommendation", "summary": "recommendation catalog sync interval changed", "time": 0}
+{"diff_touches": ["product_template"], "id": "chg_14001", "kind": "deploy", "service": "frontend", "summary": "frontend product page template updated", "time": 0}
+{"diff_touches": ["assets"], "id": "chg_13001", "kind": "deploy", "service": "image-provider", "summary": "image provider asset pack refreshed", "time": 220}
+{"diff_touches": ["product_card"], "id": "chg_13002", "kind": "deploy", "service": "frontend", "summary": "frontend product card layout updated", "time": 260}
+{"diff_touches": ["fault_filter", "image_route"], "id": "chg_13003", "kind": "runtime_config_change", "service": "frontend-proxy", "summary": "image route proxy fault filter configuration changed", "time": 300}
+{"diff_touches": ["image_urls"], "id": "chg_13004", "kind": "runtime_config_change", "service": "product-catalog", "summary": "product image URL scheme changed", "time": 345}

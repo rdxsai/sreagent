@@ -1,0 +1,30 @@
+{
+  "scenario_id": "image_slow_load_live_001",
+  "injection": {
+    "raw_flag_key": "imageSlowLoad",
+    "variant": "10sec",
+    "enabled_at_second": 300
+  },
+  "root_cause": {
+    "kind": "service",
+    "type": "latency",
+    "service": "frontend-proxy",
+    "caller": null,
+    "callee": null
+  },
+  "culprit_change_id": "chg_13003",
+  "expected_evidence": [
+    "image requests through the proxy take about 10 seconds after onset",
+    "backend services stay healthy while image delivery lags",
+    "symptoms begin after change chg_13003"
+  ],
+  "decoy_change_ids": [
+    "chg_13001",
+    "chg_13002",
+    "chg_13004"
+  ],
+  "accepted_services": [
+    "frontend-proxy",
+    "frontend"
+  ]
+}

@@ -1,0 +1,15 @@
+
+=== image_slow_load_live_001: CORRECT ===
+  location=True culprit=True decoys_ruled_out=True type_match=True
+  reported: {'kind': 'service', 'type': 'latency', 'service': 'frontend-proxy', 'caller': None, 'callee': None} culprit=chg_13003 ruled_out=['chg_14004', 'chg_14003', 'chg_14002', 'chg_14001', 'chg_13001', 'chg_13002', 'chg_13004']
+  stop=reported iterations=13 tool_calls=74 (manager=28 workers=46) subagents=4 tool_errors=0 hook_denials=0
+  manager_calls={'traces_build_topology': 1, 'traces_first_error_time': 1, 'metrics_summary_all': 1, 'traces_latency_origin': 1, 'metrics_resource_saturation': 1, 'metrics_top_movers': 1, 'topology_critical_path': 1, 'traces_slowest_operations': 1, 'topology_dependencies': 1, 'traces_find': 6, 'correlate_metric_to_traces': 1, 'metrics_detect_shift': 2, 'traces_span_tree': 2, 'correlate_onset_consensus': 1, 'investigate_parallel': 1, 'changes_search': 1, 'investigate_change': 1, 'correlate_signals': 1, 'report_build_evidence': 1, 'report_self_check': 1, 'report_root_cause': 1}
+  worker_calls={'traces_first_error_time': 3, 'metrics_summary_all': 2, 'correlate_signals': 4, 'traces_service_summary': 3, 'changes_lookback': 2, 'topology_dependencies': 3, 'changes_rank_culprit': 4, 'report_finding': 3, 'traces_error_origin': 2, 'traces_find': 3, 'changes_search': 3, 'correlate_onset_consensus': 2, 'hypothesis_rule_out': 2, 'traces_latency_origin': 2, 'metrics_top_movers': 1, 'traces_slowest_operations': 1, 'traces_compare_pre_post': 1, 'traces_span_tree': 3, 'correlate_timeline': 1, 'report_change_verdict': 1}
+    finding: flagd-ui is_origin=False fault=none suspect=None conf=0.98
+    finding: frontend-web is_origin=False fault=none suspect=None conf=0.97
+    finding: frontend-proxy is_origin=False fault=none suspect=None conf=0.97
+  tokens manager(opus): in=115065 out=4414 cache_read=145956 | workers(sonnet): in=46977 out=5654 cache_read=167635 | est_cost=$1.2486
+  feedback:
+    The investigation was somewhat complex because the error-based onset (second 62, payment) was a red herring unrelated to the actual latency symptom. The subagents used the error onset and missed the latency issue entirely. I had to manually trace the latency path through the slowest operations and identify the flagservice egress as the bottleneck. The `traces_latency_origin` tool pointed to shipping (324ms) which wasn't the real issue - the 20-second flagservice egress calls dwarfed it but may have been missed because they're client spans on frontend-proxy rather than server spans on the callee. The `investigate_parallel` delegation was mostly wasted because the agents anchored on error onset. For latency incidents, the triage phase should anchor on `metrics_detect_shift` for latency rather than `traces_first_error_time`. The `investigate_change` tool was the most useful for confirming the culprit.
+window export: {'spans': 58122, 'logs': 4973, 'metrics': 5482, 'changes': 8}
+wall_time=251s nrql_queries=149 cache_hits=146 retries=0

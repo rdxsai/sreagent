@@ -1,0 +1,57 @@
+{
+  "trace": [],
+  "findings": [
+    {
+      "service": "flagd-ui",
+      "is_origin": false,
+      "fault_type": "none",
+      "own_server_errors": 0,
+      "shifted_signals": [],
+      "suspect_change_id": null,
+      "confidence": 0.98,
+      "evidence": [
+        "flagd-ui has 0 server error spans (total_spans=2, error_spans=0, server_error_spans=0) \u2014 no own-work failures at all.",
+        "All three signals (request_error_rate, latency_p95_ms, cpu_cores) show zero shift across the onset at second 62.",
+        "No changes were found on flagd-ui before the onset second (changes_lookback returned empty; changes_rank_culprit returned no flagd-ui entries).",
+        "flagd-ui is a leaf node with no callees \u2014 it cannot propagate a fault from a downstream dependency.",
+        "The incident's first error span originated in the payment service at second 62, entirely outside flagd-ui's blast radius."
+      ]
+    },
+    {
+      "service": "frontend-web",
+      "is_origin": false,
+      "fault_type": "none",
+      "own_server_errors": 0,
+      "shifted_signals": [
+        "latency_p95_ms"
+      ],
+      "suspect_change_id": null,
+      "confidence": 0.97,
+      "evidence": [
+        "frontend-web has zero server error spans and a 0.0% error rate \u2014 it is not producing its own failures.",
+        "p95 latency shifted from 222ms pre-onset to 3183ms post-onset (shifted=true), but this is purely a propagation effect from its downstream dependency chain (frontend-web \u2192 frontend-proxy \u2192 payment).",
+        "The true error origin was identified as an edge fault: payment (client) \u2192 unknown callee, with no erroring server spans anywhere in frontend-web's own work.",
+        "No change events exist for frontend-web at all (changes_search returned empty), so there is no suspect change to attribute.",
+        "topology_dependencies confirms frontend-web has no callers \u2014 it is the entry-point \u2014 and its only callee is frontend-proxy, which itself reflects the payment fault."
+      ]
+    },
+    {
+      "service": "frontend-proxy",
+      "is_origin": false,
+      "fault_type": "none",
+      "own_server_errors": 0,
+      "shifted_signals": [
+        "latency_p95_ms"
+      ],
+      "suspect_change_id": null,
+      "confidence": 0.97,
+      "evidence": [
+        "frontend-proxy has 0 server error spans and a 0.0 error rate \u2014 no own-fault signal",
+        "p95 latency rose from ~21ms to ~3218ms post-onset, but this is downstream propagation, not own work failing",
+        "traces_latency_origin identifies 'payment' as the true latency origin (self p95=600,002ms); frontend-proxy merely waits on it",
+        "traces_error_origin classifies the fault as an edge fault from 'payment' to an unknown callee \u2014 frontend-proxy is not involved in this path",
+        "The only frontend-proxy change (chg_13003: runtime_config_change on image_route fault_filter) occurred at second 300, AFTER the onset at second 62 \u2014 ruled out as a cause by timing"
+      ]
+    }
+  ]
+}

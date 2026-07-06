@@ -19,6 +19,30 @@ trace, NRQL query log, fixture-format window export) in each run directory.
 | 11| payment_unreachable_live_001        | edge fault, dead-victim decoy    | CORRECT | yes | yes     | yes    | $0.57  | 45    | 0      | 3m      | payment_unreachable_live_001_1783327307922       |
 | 12| cart_failure_live_001               | datastore conn failure           | CORRECT | yes | yes     | yes    | $0.67  | 43    | 0      | 3m      | cart_failure_live_001_1783328126972              |
 | 13| product_catalog_failure_live_001    | single-product scoped errors     | CORRECT | yes | yes     | yes    | $0.68  | 48    | 0      | 3m      | product_catalog_failure_live_001_1783329064579   |
+| 14| image_slow_load_live_001            | proxy fault injection, browser   | CORRECT | yes | yes     | yes    | $1.25  | 74    | 0      | 4m      | image_slow_load_live_001_1783329873544           |
+
+## Campaign summary (2026-07-06)
+
+- 14 of 16 demo flags run live; 12 of 14 CORRECT (86%). Culprit change
+  identified in 13 of 14 (only the recommendation crashloop missed it).
+- 896 agent tool calls total, 0 tool errors, 0 backend failures across
+  ~2,000 NRQL queries. Total eval cost about $13.
+- Failures: recommendation_cache_failure (dead-service blind spot) and
+  load_generator_flood (blamed healthy proxy; server-healthy +
+  one-caller-slow means the caller). Both fully archived for debugging.
+- Recurring agent weakness (from its own run feedback): onset-consensus and
+  triage anchor on error signals; latency-only and resource incidents need
+  metric-shift anchoring. Subagents repeatedly anchored on noisy onsets and
+  were overridden by the manager in 4 runs.
+
+## Skipped flags (with justification)
+
+- failedReadinessProbe: flips cart's gRPC readiness to NOT_SERVING, but the
+  compose deployment defines no healthcheck for cart and no dependent uses
+  service_healthy, so nothing observes it. Kubernetes-only fault.
+- llmInaccurateResponse: swaps response text for one product with no error,
+  latency, or resource signature. Telemetry-invisible by design; out of scope
+  for a telemetry-driven agent.
 
 ## Notes
 
