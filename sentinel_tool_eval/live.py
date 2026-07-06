@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import json
 import sys
+import time
+from dataclasses import dataclass
 from pathlib import Path
 
 import anthropic
@@ -20,6 +22,7 @@ import anthropic
 import sentinel.tools  # noqa: F401  (populate the registry)
 from sentinel.fixtures.schemas import DerivedAlert, PrivateTruth
 from sentinel.newrelic.client import NerdGraphClient
+from sentinel.newrelic.export import export_window
 from sentinel.newrelic.store import NewRelicStore
 from sentinel_tool_eval.env import load_api_key
 from sentinel_tool_eval.harness import DEFAULT_TOOL_MODE, TaskResult, run_task_with
@@ -58,17 +61,77 @@ def build_live_prompt(meta: dict) -> str:
     return "\n".join(lines)
 
 
-def run_live_eval(client: anthropic.Anthropic, run_dir: Path, *, tool_mode: str = DEFAULT_TOOL_MODE) -> TaskResult:
+@dataclass
+class LiveRunOutput:
+    result: TaskResult
+    nr_client: NerdGraphClient
+    store: NewRelicStore
+    wall_time_s: float
+
+
+def run_live_eval(client: anthropic.Anthropic, run_dir: Path, *, tool_mode: str = DEFAULT_TOOL_MODE) -> LiveRunOutput:
     meta, truth = load_run(run_dir)
+    nr_client = NerdGraphClient.from_env()
     store = NewRelicStore(
-        NerdGraphClient.from_env(),
+        nr_client,
         window_start_ms=meta["window_start_ms"],
         window_end_ms=meta["window_end_ms"],
         alerts=[DerivedAlert.model_validate(a) for a in meta["alerts"]],
     )
-    return run_task_with(
+    started = time.monotonic()
+    result = run_task_with(
         client, store, truth, build_live_prompt(meta), meta["scenario_id"], tool_mode=tool_mode
     )
+    return LiveRunOutput(result, nr_client, store, time.monotonic() - started)
+
+
+def build_scorecard(out: LiveRunOutput) -> dict:
+    r = out.result
+    return {
+        "scenario_id": r.scenario_id,
+        "diagnosis": r.grade,
+        "speed": {"wall_time_s": round(out.wall_time_s, 1), "iterations": r.iterations},
+        "cost": {
+            "est_cost_usd": round(r.est_cost_usd, 4),
+            "tool_calls": r.call_count,
+            "manager_calls": len(r.calls),
+            "worker_calls": len(r.worker_calls),
+            "tokens_manager": r.usage,
+            "tokens_workers": r.worker_usage,
+        },
+        "backend": {
+            "nrql_queries": out.nr_client.stats["queries"],
+            "nrql_cache_hits": out.nr_client.stats["cache_hits"],
+            "nrql_retries": out.nr_client.stats["retries"],
+            "hydration_pages": out.store.stats["hydration_pages"],
+            "hydrated_spans": out.store.stats["hydrated_spans"],
+        },
+        "reliability": {
+            "tool_errors": r.tool_errors,
+            "hook_denials": r.denials,
+            "stop": r.stop,
+            "subagents": r.subagents,
+            "completed": r.stop == "reported",
+        },
+    }
+
+
+def persist_artifacts(out: LiveRunOutput, run_dir: Path) -> None:
+    (run_dir / "result.json").write_text(
+        json.dumps(_result_json(out.result), indent=2), encoding="utf-8"
+    )
+    (run_dir / "metrics.json").write_text(
+        json.dumps(build_scorecard(out), indent=2), encoding="utf-8"
+    )
+    (run_dir / "trace.json").write_text(
+        json.dumps({"trace": out.result.trace, "findings": out.result.findings}, indent=2),
+        encoding="utf-8",
+    )
+    with (run_dir / "queries.jsonl").open("w", encoding="utf-8") as handle:
+        for entry in out.nr_client.query_log:
+            handle.write(json.dumps(entry) + "\n")
+    counts = export_window(out.store, run_dir / "export")
+    print(f"window export: {counts}")
 
 
 def main() -> int:
@@ -79,11 +142,11 @@ def main() -> int:
         print("usage: python -m sentinel_tool_eval.live <run_dir>", file=sys.stderr)
         return 2
     run_dir = Path(sys.argv[1])
-    result = run_live_eval(anthropic.Anthropic(), run_dir)
-    _print_task(result)
-    (run_dir / "result.json").write_text(
-        json.dumps(_result_json(result), indent=2), encoding="utf-8"
-    )
+    out = run_live_eval(anthropic.Anthropic(), run_dir)
+    _print_task(out.result)
+    persist_artifacts(out, run_dir)
+    print(f"wall_time={out.wall_time_s:.0f}s nrql_queries={out.nr_client.stats['queries']} "
+          f"cache_hits={out.nr_client.stats['cache_hits']} retries={out.nr_client.stats['retries']}")
     return 0
 
 
