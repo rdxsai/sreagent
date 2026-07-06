@@ -1,0 +1,26 @@
+{
+  "scenario_id": "ad_failure_live_001",
+  "injection": {
+    "raw_flag_key": "adFailure",
+    "variant": "on",
+    "enabled_at_second": 300
+  },
+  "root_cause": {
+    "kind": "service",
+    "type": "request_failure",
+    "service": "ad",
+    "caller": null,
+    "callee": null
+  },
+  "culprit_change_id": "chg_8003",
+  "expected_evidence": [
+    "a tenth of ad requests fail with UNAVAILABLE after onset",
+    "ad error spans and warning logs appear after onset",
+    "symptoms begin after change chg_8003"
+  ],
+  "decoy_change_ids": [
+    "chg_8001",
+    "chg_8002",
+    "chg_8004"
+  ]
+}

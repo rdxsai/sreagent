@@ -1,0 +1,4 @@
+{"diff_touches": ["ad_slot"], "id": "chg_8001", "kind": "deploy", "service": "frontend", "summary": "frontend ad slot layout changed", "time": 215}
+{"diff_touches": ["fallback"], "id": "chg_8002", "kind": "runtime_config_change", "service": "recommendation", "summary": "recommendation fallback list updated", "time": 260}
+{"diff_touches": ["targeting_model", "serving_path"], "id": "chg_8003", "kind": "deploy", "service": "ad", "summary": "ad targeting model rollout", "time": 300}
+{"diff_touches": ["cache_ttl"], "id": "chg_8004", "kind": "runtime_config_change", "service": "quote", "summary": "quote cache TTL changed", "time": 330}

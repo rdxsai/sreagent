@@ -1,0 +1,44 @@
+{
+  "trace": [],
+  "findings": [
+    {
+      "service": "ad",
+      "is_origin": true,
+      "fault_type": "error",
+      "own_server_errors": 16,
+      "shifted_signals": [
+        "request_error_rate"
+      ],
+      "suspect_change_id": "chg_8003",
+      "confidence": 0.97,
+      "evidence": [
+        "traces_error_origin identifies 'ad' as the deepest error frontier (service fault) with 14 error spans at depth 7 in the call tree",
+        "ad has 16 own server error spans post-onset, confirming this is not a propagated failure from a dependency",
+        "request_error_rate jumped from pre-onset mean 0.0065 to post-onset mean 0.059 (9x increase), flagged as shifted",
+        "p95 latency did NOT shift, ruling out a slow dependency as the cause \u2014 this is a direct error fault in ad's own work",
+        "Change chg_8003 ('ad targeting model rollout') deployed at t=300s, exactly 91s before the onset at t=391s \u2014 the only change on the ad service",
+        "chg_8003 touches 'targeting_model' and 'serving_path' \u2014 both directly relevant to ad serving failures",
+        "All other services have zero error rates; frontend and frontend-proxy errors are downstream propagation from ad",
+        "Consensus onset is t=391s from trace evidence (log onset at t=510s is noisy/lagging)"
+      ]
+    },
+    {
+      "service": "frontend",
+      "is_origin": false,
+      "fault_type": "error",
+      "own_server_errors": 28,
+      "shifted_signals": [],
+      "suspect_change_id": "chg_8001",
+      "confidence": 0.92,
+      "evidence": [
+        "Consensus onset at second 391 (trace-based); frontend server errors begin at onset.",
+        "frontend has 28 own server error spans post-onset, but every inspected error trace (e.g. trace e770ade8..., 15e1a380...) shows the same propagation pattern: frontend internal/server spans error because their child client call to 'ad' (oteldemo.AdService/GetAds) returns ERROR.",
+        "The deepest erroring span in every trace is ad's server span (GetAds); ad has 16 own server errors independently confirmed by traces_error_origin and topology_locate_origin.",
+        "correlate_attribute_fault initially flags frontend due to server error count, but the span tree shows those errors are exclusively caused by the downstream ad failure \u2014 frontend does no own failing work.",
+        "No metric signals shifted for frontend after onset: request_error_rate and latency_p95_ms both unchanged (correlate_signals returned shifted_metrics=[]).",
+        "frontend change chg_8001 ('frontend ad slot layout changed', diff_touches=['ad_slot']) is a UI layout change and does not touch ad service logic (targeting_model, serving_path) that is actually failing.",
+        "The real culprit change is chg_8003 on the 'ad' service ('ad targeting model rollout', diff_touches=['targeting_model','serving_path']), deployed at second 300, 91 seconds before onset at 391."
+      ]
+    }
+  ]
+}

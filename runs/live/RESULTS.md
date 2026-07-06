@@ -12,6 +12,7 @@ trace, NRQL query log, fixture-format window export) in each run directory.
 | 4 | email_memory_leak_live_001          | slow leak, service stays up      | CORRECT | yes | yes     | yes    | $1.46  | 84    | 0      | 4m      | email_memory_leak_live_001_1783320315486         |
 | 5 | llm_rate_limit_live_001             | probabilistic 429s, sparse path  | CORRECT | yes | yes     | yes    | $0.72  | 50    | 0      | 3m      | llm_rate_limit_live_001_1783321573234            |
 | 6 | load_generator_flood_live_001       | traffic surge, self-inflicted    | WRONG   | no  | yes     | yes    | $0.97  | 83    | 0      | 5m      | load_generator_flood_live_001_1783322901410      |
+| 7 | ad_failure_live_001                 | probabilistic error spans        | CORRECT | yes | yes     | yes    | $0.49  | 36    | 0      | 2m      | ad_failure_live_001_1783323939751                |
 
 ## Notes
 

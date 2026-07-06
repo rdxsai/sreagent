@@ -1,0 +1,74 @@
+{
+  "scenario_id": "ad_failure_live_001",
+  "diagnosis": {
+    "correct": true,
+    "location_correct": true,
+    "culprit_correct": true,
+    "decoys_ruled_out": true,
+    "type_match": false,
+    "reported": {
+      "root_cause": {
+        "kind": "service",
+        "type": "error",
+        "service": "ad",
+        "caller": null,
+        "callee": null
+      },
+      "culprit_change_id": "chg_8003",
+      "ruled_out_change_ids": [
+        "chg_8001",
+        "chg_8002",
+        "chg_8004"
+      ]
+    },
+    "truth": {
+      "root_cause": {
+        "kind": "service",
+        "type": "request_failure",
+        "service": "ad"
+      },
+      "culprit_change_id": "chg_8003",
+      "decoy_change_ids": [
+        "chg_8001",
+        "chg_8002",
+        "chg_8004"
+      ]
+    }
+  },
+  "speed": {
+    "wall_time_s": 124.8,
+    "iterations": 6
+  },
+  "cost": {
+    "est_cost_usd": 0.4869,
+    "tool_calls": 36,
+    "manager_calls": 9,
+    "worker_calls": 27,
+    "tokens_manager": {
+      "input": 16486,
+      "output": 1534,
+      "cache_read": 60815,
+      "cache_write": 12163
+    },
+    "tokens_workers": {
+      "input": 34649,
+      "output": 3195,
+      "cache_read": 109769,
+      "cache_write": 19958
+    }
+  },
+  "backend": {
+    "nrql_queries": 72,
+    "nrql_cache_hits": 93,
+    "nrql_retries": 0,
+    "hydration_pages": 30,
+    "hydrated_spans": 66554
+  },
+  "reliability": {
+    "tool_errors": 0,
+    "hook_denials": 0,
+    "stop": "reported",
+    "subagents": 2,
+    "completed": true
+  }
+}

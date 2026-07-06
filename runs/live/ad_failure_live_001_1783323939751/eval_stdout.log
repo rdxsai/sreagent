@@ -1,0 +1,14 @@
+
+=== ad_failure_live_001: CORRECT ===
+  location=True culprit=True decoys_ruled_out=True type_match=False
+  reported: {'kind': 'service', 'type': 'error', 'service': 'ad', 'caller': None, 'callee': None} culprit=chg_8003 ruled_out=['chg_8001', 'chg_8002', 'chg_8004']
+  stop=reported iterations=6 tool_calls=36 (manager=9 workers=27) subagents=2 tool_errors=0 hook_denials=0
+  manager_calls={'traces_build_topology': 1, 'metrics_summary_all': 1, 'traces_first_error_time': 1, 'traces_error_origin': 1, 'investigate_parallel': 1, 'changes_rank_culprit': 1, 'report_build_evidence': 1, 'report_self_check': 1, 'report_root_cause': 1}
+  worker_calls={'traces_first_error_time': 1, 'traces_error_origin': 2, 'metrics_summary_all': 2, 'correlate_signals': 2, 'changes_rank_culprit': 2, 'traces_service_summary': 2, 'changes_search': 3, 'correlate_onset_consensus': 2, 'logs_error_clusters': 1, 'report_finding': 2, 'hypothesis_gather_evidence': 1, 'traces_error_summary': 1, 'correlate_attribute_fault': 1, 'topology_locate_origin': 1, 'traces_span_tree': 2, 'hypothesis_rule_out': 1, 'correlate_metric_to_traces': 1}
+    finding: ad is_origin=True fault=error suspect=chg_8003 conf=0.97
+    finding: frontend is_origin=False fault=error suspect=chg_8001 conf=0.92
+  tokens manager(opus): in=16486 out=1534 cache_read=60815 | workers(sonnet): in=34649 out=3195 cache_read=109769 | est_cost=$0.4869
+  feedback:
+    Investigation was clean and efficient. The triage phase immediately identified ad as the error origin via traces_error_origin, and the parallel investigation confirmed it with strong evidence. The decoy change chg_8001 on frontend (ad_slot layout) could have been misleading given the symptom is about ads, but the diff_touches on chg_8003 (targeting_model, serving_path) clearly match the actual ad serving failure. Tools worked well together - topology, metrics, traces, and changes all converged on the same answer.
+window export: {'spans': 66554, 'logs': 5000, 'metrics': 3473, 'changes': 4}
+wall_time=125s nrql_queries=108 cache_hits=132 retries=0
