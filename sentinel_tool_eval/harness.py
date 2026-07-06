@@ -112,31 +112,32 @@ def _build_code_result(scenario_id, result, grade_dict) -> TaskResult:
     )
 
 
-def run_task(
+def run_task_with(
     client: anthropic.Anthropic,
-    scenario: Scenario,
+    store,
+    truth,
+    prompt: str,
+    scenario_id: str,
     *,
     manager_model: str = DEFAULT_MODEL,
     worker_model: str = DEFAULT_WORKER_MODEL,
     effort: str = DEFAULT_EFFORT,
     tool_mode: str = DEFAULT_TOOL_MODE,
 ) -> TaskResult:
-    store = FixtureStore(scenario.public_dir)
-    truth = load_truth(scenario.truth_path)
     if tool_mode == "code":
         backend = os.environ.get("SENTINEL_CODE_BACKEND", "docker")
         result = run_code_agent(
-            client, store, build_task_prompt(scenario),
+            client, store, prompt,
             model=manager_model, effort=effort,
             max_iters=DEFAULT_MANAGER_MAX_ITERS, max_tokens=DEFAULT_MAX_TOKENS,
             output_budget=DEFAULT_OUTPUT_BUDGET, max_tool_calls=DEFAULT_MANAGER_MAX_TOOL_CALLS,
             executor_backend=backend,
         )
-        return _build_code_result(scenario.id, result, grade(result.report, truth))
+        return _build_code_result(scenario_id, result, grade(result.report, truth))
     result = run_manager(
         client,
         store,
-        build_task_prompt(scenario),
+        prompt,
         manager_model=manager_model,
         worker_model=worker_model,
         effort=effort,
@@ -149,7 +150,7 @@ def run_task(
     )
     loop = result.manager_loop
     return TaskResult(
-        scenario_id=scenario.id,
+        scenario_id=scenario_id,
         report=result.report,
         grade=grade(result.report, truth),
         calls=loop.calls,
@@ -163,4 +164,26 @@ def run_task(
         denials=loop.denials,
         subagents=result.subagents,
         findings=result.findings,
+    )
+
+
+def run_task(
+    client: anthropic.Anthropic,
+    scenario: Scenario,
+    *,
+    manager_model: str = DEFAULT_MODEL,
+    worker_model: str = DEFAULT_WORKER_MODEL,
+    effort: str = DEFAULT_EFFORT,
+    tool_mode: str = DEFAULT_TOOL_MODE,
+) -> TaskResult:
+    return run_task_with(
+        client,
+        FixtureStore(scenario.public_dir),
+        load_truth(scenario.truth_path),
+        build_task_prompt(scenario),
+        scenario.id,
+        manager_model=manager_model,
+        worker_model=worker_model,
+        effort=effort,
+        tool_mode=tool_mode,
     )
