@@ -1,0 +1,74 @@
+{
+  "scenario_id": "email_memory_leak_live_001",
+  "diagnosis": {
+    "correct": true,
+    "location_correct": true,
+    "culprit_correct": true,
+    "decoys_ruled_out": true,
+    "type_match": false,
+    "reported": {
+      "root_cause": {
+        "kind": "service",
+        "type": "latency",
+        "service": "email",
+        "caller": null,
+        "callee": null
+      },
+      "culprit_change_id": "chg_5003",
+      "ruled_out_change_ids": [
+        "chg_5001",
+        "chg_5002",
+        "chg_5004"
+      ]
+    },
+    "truth": {
+      "root_cause": {
+        "kind": "service",
+        "type": "memory_leak",
+        "service": "email"
+      },
+      "culprit_change_id": "chg_5003",
+      "decoy_change_ids": [
+        "chg_5001",
+        "chg_5002",
+        "chg_5004"
+      ]
+    }
+  },
+  "speed": {
+    "wall_time_s": 231.0,
+    "iterations": 15
+  },
+  "cost": {
+    "est_cost_usd": 1.4556,
+    "tool_calls": 84,
+    "manager_calls": 44,
+    "worker_calls": 40,
+    "tokens_manager": {
+      "input": 165952,
+      "output": 4749,
+      "cache_read": 170282,
+      "cache_write": 12163
+    },
+    "tokens_workers": {
+      "input": 34658,
+      "output": 4258,
+      "cache_read": 133995,
+      "cache_write": 36778
+    }
+  },
+  "backend": {
+    "nrql_queries": 119,
+    "nrql_cache_hits": 190,
+    "nrql_retries": 0,
+    "hydration_pages": 56,
+    "hydrated_spans": 134866
+  },
+  "reliability": {
+    "tool_errors": 0,
+    "hook_denials": 3,
+    "stop": "reported",
+    "subagents": 4,
+    "completed": true
+  }
+}

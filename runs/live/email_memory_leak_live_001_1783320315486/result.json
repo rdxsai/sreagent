@@ -1,0 +1,250 @@
+{
+  "scenario_id": "email_memory_leak_live_001",
+  "grade": {
+    "correct": true,
+    "location_correct": true,
+    "culprit_correct": true,
+    "decoys_ruled_out": true,
+    "type_match": false,
+    "reported": {
+      "root_cause": {
+        "kind": "service",
+        "type": "latency",
+        "service": "email",
+        "caller": null,
+        "callee": null
+      },
+      "culprit_change_id": "chg_5003",
+      "ruled_out_change_ids": [
+        "chg_5001",
+        "chg_5002",
+        "chg_5004"
+      ]
+    },
+    "truth": {
+      "root_cause": {
+        "kind": "service",
+        "type": "memory_leak",
+        "service": "email"
+      },
+      "culprit_change_id": "chg_5003",
+      "decoy_change_ids": [
+        "chg_5001",
+        "chg_5002",
+        "chg_5004"
+      ]
+    }
+  },
+  "report": {
+    "root_cause": {
+      "kind": "service",
+      "type": "latency",
+      "service": "email",
+      "caller": null,
+      "callee": null
+    },
+    "culprit_change_id": "chg_5003",
+    "ruled_out_change_ids": [
+      "chg_5001",
+      "chg_5002",
+      "chg_5004"
+    ],
+    "evidence": [
+      "Email service latency increased ~5x after onset 360: baseline mean 1.5ms \u2192 post-onset mean 8.9ms (483% increase), with peaks to 155ms",
+      "Change chg_5003 at t=300 on email service: 'email template rendering configuration changed' touching template and delivery_buffer \u2014 directly explains email delivery delays",
+      "Trace d48a2af1775393d790214479d1dac6e2 shows email send_email span at 155ms (vs normal ~1ms), with no errors",
+      "Trace b74c9f6fec1c98be10b5667829d44b65 shows email send_email at 102ms, shipping get-quote at 32ms \u2014 email is the dominant latency contributor",
+      "Checkout latency also rose (81%) as it synchronously calls email during PlaceOrder",
+      "Email service has 0 error spans \u2014 this is a pure latency degradation from the delivery_buffer config change",
+      "chg_5001 (frontend deploy at t=200): frontend has no server errors and no latency rise \u2014 ruled out",
+      "chg_5002 (checkout retry policy at t=250): checkout has no own errors \u2014 ruled out as origin",
+      "chg_5004 (currency locale at t=340): currency has no latency/error shift \u2014 ruled out"
+    ],
+    "timeline": [
+      {
+        "second": 200,
+        "kind": "change",
+        "detail": "chg_5001: frontend order status page updated (ruled out)"
+      },
+      {
+        "second": 250,
+        "kind": "change",
+        "detail": "chg_5002: checkout confirmation retry policy adjusted (ruled out)"
+      },
+      {
+        "second": 300,
+        "kind": "change",
+        "detail": "chg_5003: email template rendering configuration changed \u2014 touches delivery_buffer (CULPRIT)"
+      },
+      {
+        "second": 340,
+        "kind": "change",
+        "detail": "chg_5004: currency formatting locale updated (ruled out)"
+      },
+      {
+        "second": 360,
+        "kind": "onset",
+        "detail": "Alert fires: email latency increases ~5x, order confirmation emails delayed"
+      }
+    ]
+  },
+  "calls": [
+    "traces_build_topology",
+    "traces_first_error_time",
+    "metrics_summary_all",
+    "metrics_top_movers",
+    "correlate_onset_consensus",
+    "topology_compare",
+    "traces_error_origin",
+    "traces_span_tree",
+    "metrics_detect_shift",
+    "topology_dependencies",
+    "traces_latency_origin",
+    "correlate_signals",
+    "correlate_signals",
+    "traces_slowest_operations",
+    "metrics_detect_shift",
+    "correlate_signals",
+    "metrics_detect_shift",
+    "topology_dependencies",
+    "traces_find",
+    "metrics_detect_shift",
+    "traces_find",
+    "metrics_resource_saturation",
+    "traces_compare_pre_post",
+    "metrics_series",
+    "metrics_series",
+    "correlate_metric_to_traces",
+    "metrics_series",
+    "traces_span_tree",
+    "traces_span_tree",
+    "investigate_parallel",
+    "metrics_detect_shift",
+    "metrics_compare_baseline",
+    "metrics_compare_baseline",
+    "metrics_compare_baseline",
+    "logs_error_clusters",
+    "logs_search",
+    "changes_search",
+    "changes_search",
+    "investigate_change",
+    "hypothesis_rule_out",
+    "hypothesis_rule_out",
+    "hypothesis_rule_out",
+    "report_build_evidence",
+    "report_root_cause"
+  ],
+  "worker_calls": [
+    "traces_first_error_time",
+    "traces_error_origin",
+    "metrics_summary_all",
+    "correlate_onset_consensus",
+    "traces_service_summary",
+    "correlate_signals",
+    "changes_rank_culprit",
+    "hypothesis_rule_out",
+    "report_finding",
+    "traces_first_error_time",
+    "traces_service_summary",
+    "metrics_summary_all",
+    "correlate_onset_consensus",
+    "correlate_signals",
+    "changes_search",
+    "hypothesis_rule_out",
+    "hypothesis_rule_out",
+    "report_finding",
+    "traces_first_error_time",
+    "traces_error_origin",
+    "metrics_summary_all",
+    "correlate_onset_consensus",
+    "correlate_signals",
+    "traces_service_summary",
+    "changes_rank_culprit",
+    "hypothesis_rule_out",
+    "report_finding",
+    "changes_search",
+    "correlate_onset_consensus",
+    "metrics_top_movers",
+    "correlate_signals",
+    "metrics_detect_shift",
+    "changes_rank_culprit",
+    "metrics_compare_baseline",
+    "traces_slowest_operations",
+    "correlate_timeline",
+    "traces_latency_origin",
+    "traces_compare_pre_post",
+    "metrics_series",
+    "report_change_verdict"
+  ],
+  "internal_calls": [],
+  "subagents": 4,
+  "findings": [
+    {
+      "service": "shipping",
+      "is_origin": false,
+      "fault_type": "none",
+      "own_server_errors": 0,
+      "shifted_signals": [],
+      "suspect_change_id": null,
+      "confidence": 0.97,
+      "evidence": [
+        "shipping has 0 server error spans across all 423 total spans \u2014 no own-work failures",
+        "request_error_rate is 0.0 both pre- and post-onset (second 35); signal did not shift",
+        "latency_p95_ms rose modestly (2.34 ms \u2192 5.16 ms) but not enough to cross the 10% threshold \u2014 ruled non-shifted",
+        "CPU cores remained at 0.0 \u2014 no saturation",
+        "traces_error_origin attributes the fault to the fraud-detection \u2192 unknown edge, entirely unrelated to shipping",
+        "hypothesis_rule_out confirmed: shipping is not the originating service",
+        "No changes found on shipping service before onset second 35"
+      ]
+    },
+    {
+      "service": "email",
+      "is_origin": false,
+      "fault_type": "none",
+      "own_server_errors": 0,
+      "shifted_signals": [],
+      "suspect_change_id": null,
+      "confidence": 0.97,
+      "evidence": [
+        "email has 0 server error spans and a 0.0 error rate throughout the window \u2014 no own-work failures.",
+        "No signals shifted after onset (second 35): error_rate stayed 0.0, latency_p95 did not shift meaningfully, CPU cores near 0.",
+        "The only change on email (chg_5003, runtime_config_change at second 300) postdates the fault onset at second 35 and is ruled out as non-causal.",
+        "Fault origin signals point to 'ad' (first error span at second 35) and 'fraud-detection' (7.1% error rate, 6.9s p95 latency), not email."
+      ]
+    },
+    {
+      "service": "checkout",
+      "is_origin": false,
+      "fault_type": "none",
+      "own_server_errors": 0,
+      "shifted_signals": [],
+      "suspect_change_id": null,
+      "confidence": 0.97,
+      "evidence": [
+        "checkout has 0 server error spans out of 200 total spans \u2014 no own-work failures",
+        "correlate_signals shows no shift in error_rate or latency_p95_ms after onset (second 35)",
+        "hypothesis_rule_out explicitly ruled out checkout as the originating service",
+        "traces_error_origin identifies an edge fault from fraud-detection to unknown \u2014 unrelated to checkout",
+        "No changes found on checkout before the onset second (changes_rank_culprit returned empty)",
+        "checkout p95 latency pre-onset (16.99 ms) vs post-onset (17.86 ms) \u2014 negligible change, not shifted"
+      ]
+    }
+  ],
+  "tool_errors": 0,
+  "iterations": 15,
+  "stop": "reported",
+  "usage": {
+    "input": 165952,
+    "output": 4749,
+    "cache_read": 170282,
+    "cache_write": 12163
+  },
+  "worker_usage": {
+    "input": 34658,
+    "output": 4258,
+    "cache_read": 133995,
+    "cache_write": 36778
+  },
+  "feedback": "The subagent investigation used the wrong onset (35s from trace_first_error, which is fraud-detection noise) instead of the alert onset (360s). The correlate_onset_consensus tool agreed with 35s which was misleading. The real symptom onset aligns with 360. The tool budget limit forced me to skip some validation steps. The investigate_change tool was useful for confirming the diff_touches match. Key lesson: when the trace-based onset is clearly noise (unrelated service), trust the alert time.",
+  "denials": 3
+}

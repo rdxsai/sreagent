@@ -1,0 +1,4 @@
+{"diff_touches": ["order_status"], "id": "chg_5001", "kind": "deploy", "service": "frontend", "summary": "frontend order status page updated", "time": 200}
+{"diff_touches": ["retry_policy"], "id": "chg_5002", "kind": "runtime_config_change", "service": "checkout", "summary": "checkout confirmation retry policy adjusted", "time": 250}
+{"diff_touches": ["template", "delivery_buffer"], "id": "chg_5003", "kind": "runtime_config_change", "service": "email", "summary": "email template rendering configuration changed", "time": 300}
+{"diff_touches": ["locale"], "id": "chg_5004", "kind": "runtime_config_change", "service": "currency", "summary": "currency formatting locale updated", "time": 340}

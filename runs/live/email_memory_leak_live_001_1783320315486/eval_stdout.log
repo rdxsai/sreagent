@@ -1,0 +1,15 @@
+
+=== email_memory_leak_live_001: CORRECT ===
+  location=True culprit=True decoys_ruled_out=True type_match=False
+  reported: {'kind': 'service', 'type': 'latency', 'service': 'email', 'caller': None, 'callee': None} culprit=chg_5003 ruled_out=['chg_5001', 'chg_5002', 'chg_5004']
+  stop=reported iterations=15 tool_calls=84 (manager=44 workers=40) subagents=4 tool_errors=0 hook_denials=3
+  manager_calls={'traces_build_topology': 1, 'traces_first_error_time': 1, 'metrics_summary_all': 1, 'metrics_top_movers': 1, 'correlate_onset_consensus': 1, 'topology_compare': 1, 'traces_error_origin': 1, 'traces_span_tree': 3, 'metrics_detect_shift': 5, 'topology_dependencies': 2, 'traces_latency_origin': 1, 'correlate_signals': 3, 'traces_slowest_operations': 1, 'traces_find': 2, 'metrics_resource_saturation': 1, 'traces_compare_pre_post': 1, 'metrics_series': 3, 'correlate_metric_to_traces': 1, 'investigate_parallel': 1, 'metrics_compare_baseline': 3, 'logs_error_clusters': 1, 'logs_search': 1, 'changes_search': 2, 'investigate_change': 1, 'hypothesis_rule_out': 3, 'report_build_evidence': 1, 'report_root_cause': 1}
+  worker_calls={'traces_first_error_time': 3, 'traces_error_origin': 2, 'metrics_summary_all': 3, 'correlate_onset_consensus': 4, 'traces_service_summary': 3, 'correlate_signals': 4, 'changes_rank_culprit': 3, 'hypothesis_rule_out': 4, 'report_finding': 3, 'changes_search': 2, 'metrics_top_movers': 1, 'metrics_detect_shift': 1, 'metrics_compare_baseline': 1, 'traces_slowest_operations': 1, 'correlate_timeline': 1, 'traces_latency_origin': 1, 'traces_compare_pre_post': 1, 'metrics_series': 1, 'report_change_verdict': 1}
+    finding: shipping is_origin=False fault=none suspect=None conf=0.97
+    finding: email is_origin=False fault=none suspect=None conf=0.97
+    finding: checkout is_origin=False fault=none suspect=None conf=0.97
+  tokens manager(opus): in=165952 out=4749 cache_read=170282 | workers(sonnet): in=34658 out=4258 cache_read=133995 | est_cost=$1.4556
+  feedback:
+    The subagent investigation used the wrong onset (35s from trace_first_error, which is fraud-detection noise) instead of the alert onset (360s). The correlate_onset_consensus tool agreed with 35s which was misleading. The real symptom onset aligns with 360. The tool budget limit forced me to skip some validation steps. The investigate_change tool was useful for confirming the diff_touches match. Key lesson: when the trace-based onset is clearly noise (unrelated service), trust the alert time.
+window export: {'spans': 134866, 'logs': 4973, 'metrics': 5364, 'changes': 4}
+wall_time=231s nrql_queries=173 cache_hits=211 retries=0

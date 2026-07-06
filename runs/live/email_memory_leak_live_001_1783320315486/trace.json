@@ -1,0 +1,55 @@
+{
+  "trace": [],
+  "findings": [
+    {
+      "service": "shipping",
+      "is_origin": false,
+      "fault_type": "none",
+      "own_server_errors": 0,
+      "shifted_signals": [],
+      "suspect_change_id": null,
+      "confidence": 0.97,
+      "evidence": [
+        "shipping has 0 server error spans across all 423 total spans \u2014 no own-work failures",
+        "request_error_rate is 0.0 both pre- and post-onset (second 35); signal did not shift",
+        "latency_p95_ms rose modestly (2.34 ms \u2192 5.16 ms) but not enough to cross the 10% threshold \u2014 ruled non-shifted",
+        "CPU cores remained at 0.0 \u2014 no saturation",
+        "traces_error_origin attributes the fault to the fraud-detection \u2192 unknown edge, entirely unrelated to shipping",
+        "hypothesis_rule_out confirmed: shipping is not the originating service",
+        "No changes found on shipping service before onset second 35"
+      ]
+    },
+    {
+      "service": "email",
+      "is_origin": false,
+      "fault_type": "none",
+      "own_server_errors": 0,
+      "shifted_signals": [],
+      "suspect_change_id": null,
+      "confidence": 0.97,
+      "evidence": [
+        "email has 0 server error spans and a 0.0 error rate throughout the window \u2014 no own-work failures.",
+        "No signals shifted after onset (second 35): error_rate stayed 0.0, latency_p95 did not shift meaningfully, CPU cores near 0.",
+        "The only change on email (chg_5003, runtime_config_change at second 300) postdates the fault onset at second 35 and is ruled out as non-causal.",
+        "Fault origin signals point to 'ad' (first error span at second 35) and 'fraud-detection' (7.1% error rate, 6.9s p95 latency), not email."
+      ]
+    },
+    {
+      "service": "checkout",
+      "is_origin": false,
+      "fault_type": "none",
+      "own_server_errors": 0,
+      "shifted_signals": [],
+      "suspect_change_id": null,
+      "confidence": 0.97,
+      "evidence": [
+        "checkout has 0 server error spans out of 200 total spans \u2014 no own-work failures",
+        "correlate_signals shows no shift in error_rate or latency_p95_ms after onset (second 35)",
+        "hypothesis_rule_out explicitly ruled out checkout as the originating service",
+        "traces_error_origin identifies an edge fault from fraud-detection to unknown \u2014 unrelated to checkout",
+        "No changes found on checkout before the onset second (changes_rank_culprit returned empty)",
+        "checkout p95 latency pre-onset (16.99 ms) vs post-onset (17.86 ms) \u2014 negligible change, not shifted"
+      ]
+    }
+  ]
+}
