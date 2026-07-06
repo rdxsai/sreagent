@@ -10,6 +10,7 @@ trace, NRQL query log, fixture-format window export) in each run directory.
 | 2 | recommendation_cache_failure_live_001| OOM crashloop, victim noise     | WRONG   | no  | no      | no     | $1.16  | 89    | 0      | 16m     | recommendation_cache_failure_live_001_1783306411989 |
 | 3 | intl_shipping_slowdown_live_001     | dimensional latency needle       | CORRECT | yes | yes     | yes    | $1.66  | 117   | 0      | 6m      | intl_shipping_slowdown_live_001_1783316825851    |
 | 4 | email_memory_leak_live_001          | slow leak, service stays up      | CORRECT | yes | yes     | yes    | $1.46  | 84    | 0      | 4m      | email_memory_leak_live_001_1783320315486         |
+| 5 | llm_rate_limit_live_001             | probabilistic 429s, sparse path  | CORRECT | yes | yes     | yes    | $0.72  | 50    | 0      | 3m      | llm_rate_limit_live_001_1783321573234            |
 
 ## Notes
 

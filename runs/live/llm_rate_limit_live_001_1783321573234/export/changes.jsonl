@@ -1,0 +1,4 @@
+{"diff_touches": ["assistant_widget"], "id": "chg_6001", "kind": "deploy", "service": "frontend", "summary": "frontend AI assistant widget restyled", "time": 210}
+{"diff_touches": ["prompt_template"], "id": "chg_6002", "kind": "runtime_config_change", "service": "product-reviews", "summary": "review summary prompt template updated", "time": 255}
+{"diff_touches": ["rate_limit", "provider_tier"], "id": "chg_6003", "kind": "runtime_config_change", "service": "llm", "summary": "llm provider rate limit tier changed", "time": 300}
+{"diff_touches": ["scoring"], "id": "chg_6004", "kind": "runtime_config_change", "service": "recommendation", "summary": "recommendation scoring parameter changed", "time": 335}

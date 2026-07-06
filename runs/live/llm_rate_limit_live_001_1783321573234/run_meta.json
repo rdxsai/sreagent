@@ -1,0 +1,23 @@
+{
+  "scenario_id": "llm_rate_limit_live_001",
+  "window_start_ms": 1783321273234,
+  "window_end_ms": 1783322201499,
+  "symptom": "The product AI assistant intermittently fails to answer questions.",
+  "alerts": [
+    {
+      "alertname": "UserFacingDegradation",
+      "severity": "critical",
+      "starts_at_second": 360,
+      "labels": {
+        "signal": "degradation",
+        "tier": "user_facing"
+      },
+      "annotations": {
+        "summary": "Degradation detected since second 360"
+      },
+      "value": 1.0,
+      "expr": "live:llmRateLimitError",
+      "fingerprint": "live-llm_rate_limit_live_001"
+    }
+  ]
+}

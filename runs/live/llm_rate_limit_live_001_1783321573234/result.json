@@ -1,0 +1,200 @@
+{
+  "scenario_id": "llm_rate_limit_live_001",
+  "grade": {
+    "correct": true,
+    "location_correct": true,
+    "culprit_correct": true,
+    "decoys_ruled_out": true,
+    "type_match": true,
+    "reported": {
+      "root_cause": {
+        "kind": "edge",
+        "type": "rate_limit",
+        "service": null,
+        "caller": "product-reviews",
+        "callee": "llm"
+      },
+      "culprit_change_id": "chg_6003",
+      "ruled_out_change_ids": [
+        "chg_6001",
+        "chg_6002",
+        "chg_6004"
+      ]
+    },
+    "truth": {
+      "root_cause": {
+        "kind": "service",
+        "type": "rate_limit_errors",
+        "service": "llm"
+      },
+      "culprit_change_id": "chg_6003",
+      "decoy_change_ids": [
+        "chg_6001",
+        "chg_6002",
+        "chg_6004"
+      ]
+    }
+  },
+  "report": {
+    "root_cause": {
+      "kind": "edge",
+      "type": "rate_limit",
+      "service": null,
+      "caller": "product-reviews",
+      "callee": "llm"
+    },
+    "culprit_change_id": "chg_6003",
+    "ruled_out_change_ids": [
+      "chg_6001",
+      "chg_6002",
+      "chg_6004"
+    ],
+    "evidence": [
+      "culprit chg_6003 on llm at second 300 precedes onset 588: llm provider rate limit tier changed",
+      "product-reviews has 0 server error spans \u2014 its own request handling succeeds",
+      "8 client-side error spans from product-reviews calling astronomy-llm-rate-limit (external LLM endpoint)",
+      "Error rate shift detected at second 588 in product-reviews: 0.0 \u2192 1.17%",
+      "Zero product-reviews errors before second 590, confirming true onset ~588",
+      "Operation name 'chat astronomy-llm-rate-limit' directly matches chg_6003 diff_touches: rate_limit, provider_tier",
+      "chg_6001 ruled out: frontend widget restyling unrelated to LLM rate limits",
+      "chg_6002 ruled out: prompt template change doesn't explain rate limiting failures",
+      "chg_6004 ruled out: recommendation scoring parameter on unrelated service"
+    ],
+    "timeline": [
+      {
+        "second": 210,
+        "kind": "change",
+        "detail": "chg_6001 on frontend: frontend AI assistant widget restyled"
+      },
+      {
+        "second": 255,
+        "kind": "change",
+        "detail": "chg_6002 on product-reviews: review summary prompt template updated"
+      },
+      {
+        "second": 300,
+        "kind": "change",
+        "detail": "chg_6003 on llm: llm provider rate limit tier changed"
+      },
+      {
+        "second": 335,
+        "kind": "change",
+        "detail": "chg_6004 on recommendation: recommendation scoring parameter changed"
+      },
+      {
+        "second": 588,
+        "kind": "onset",
+        "detail": "product-reviews error rate shifts from 0% to 1.17% \u2014 client spans to LLM begin failing with rate limit errors"
+      }
+    ]
+  },
+  "calls": [
+    "traces_build_topology",
+    "traces_first_error_time",
+    "metrics_summary_all",
+    "traces_error_origin",
+    "topology_locate_origin",
+    "correlate_onset_consensus",
+    "topology_dependencies",
+    "metrics_detect_shift",
+    "traces_find",
+    "traces_span_tree",
+    "topology_compare",
+    "changes_search",
+    "investigate_parallel",
+    "investigate_change",
+    "changes_rank_culprit",
+    "traces_find",
+    "hypothesis_rule_out",
+    "hypothesis_rule_out",
+    "report_build_evidence",
+    "report_self_check",
+    "report_root_cause"
+  ],
+  "worker_calls": [
+    "traces_first_error_time",
+    "metrics_summary_all",
+    "traces_error_origin",
+    "correlate_signals",
+    "traces_service_summary",
+    "correlate_onset_consensus",
+    "changes_search",
+    "hypothesis_rule_out",
+    "hypothesis_rule_out",
+    "report_finding",
+    "traces_first_error_time",
+    "traces_error_origin",
+    "traces_service_summary",
+    "correlate_onset_consensus",
+    "correlate_signals",
+    "traces_error_summary",
+    "traces_find",
+    "changes_rank_culprit",
+    "traces_span_tree",
+    "changes_lookback",
+    "correlate_attribute_fault",
+    "changes_search",
+    "report_finding",
+    "changes_search",
+    "correlate_onset_consensus",
+    "traces_error_origin",
+    "correlate_timeline",
+    "traces_span_tree",
+    "report_change_verdict"
+  ],
+  "internal_calls": [],
+  "subagents": 3,
+  "findings": [
+    {
+      "service": "frontend",
+      "is_origin": false,
+      "fault_type": "none",
+      "own_server_errors": 0,
+      "shifted_signals": [],
+      "suspect_change_id": null,
+      "confidence": 0.97,
+      "evidence": [
+        "frontend has 0 server error spans out of 44,185 total spans \u2014 zero own-fault errors",
+        "request_error_rate post-onset: 0.0 (unchanged); latency_p95_ms post-onset: ~26ms (no shift); no CPU anomaly detected",
+        "traces_error_origin classified the incident as an edge fault at product-reviews \u2192 unknown callee, completely unrelated to frontend",
+        "Only one frontend change found (chg_6001, deploy at second 210: 'AI assistant widget restyled'), which postdates the onset at second 1 \u2014 ruled out as a cause",
+        "Topology confirms frontend is a downstream consumer of other services; its own work shows no degradation"
+      ]
+    },
+    {
+      "service": "product-reviews",
+      "is_origin": false,
+      "fault_type": "edge",
+      "own_server_errors": 0,
+      "shifted_signals": [],
+      "suspect_change_id": null,
+      "confidence": 0.85,
+      "evidence": [
+        "product-reviews has 0 server error spans \u2014 its own request handling succeeds",
+        "8 client-side error spans from product-reviews calling 'astronomy-llm-rate-limit' (external LLM endpoint) via operation 'chat astronomy-llm-rate-limit'",
+        "correlate_attribute_fault confirms an edge fault: product-reviews client errors to astronomy-llm-rate-limit while the callee has no server spans (call never lands)",
+        "traces_error_origin classifies fault as edge with caller=product-reviews, callee=unknown \u2014 matching the external LLM endpoint",
+        "No significant shifts in product-reviews own metrics: request_error_rate and latency_p95_ms both show no meaningful post-onset change",
+        "No changes found for product-reviews before onset \u2014 no code or config change on this service to investigate",
+        "The failure path is: frontend -> product-reviews (OK server span) -> astronomy-llm-rate-limit (external, unreachable/rate-limited)"
+      ]
+    }
+  ],
+  "tool_errors": 0,
+  "iterations": 10,
+  "stop": "reported",
+  "usage": {
+    "input": 50332,
+    "output": 3158,
+    "cache_read": 109467,
+    "cache_write": 12163
+  },
+  "worker_usage": {
+    "input": 23372,
+    "output": 3526,
+    "cache_read": 103493,
+    "cache_write": 26799
+  },
+  "feedback": "The trace-based onset (second 1) was misleading \u2014 it came from ad service noise, not the actual incident. The metric shift detection on product-reviews (second 588) was the reliable onset. The investigate_change subagent incorrectly rejected chg_6003 because it used the wrong onset. The changes_rank_culprit tool correctly ranked chg_6003 highest when given the right onset. Key lesson: always validate the global trace onset against the specific service's error timeline.",
+  "denials": 0
+}

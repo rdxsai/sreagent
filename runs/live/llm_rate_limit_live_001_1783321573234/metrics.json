@@ -1,0 +1,74 @@
+{
+  "scenario_id": "llm_rate_limit_live_001",
+  "diagnosis": {
+    "correct": true,
+    "location_correct": true,
+    "culprit_correct": true,
+    "decoys_ruled_out": true,
+    "type_match": true,
+    "reported": {
+      "root_cause": {
+        "kind": "edge",
+        "type": "rate_limit",
+        "service": null,
+        "caller": "product-reviews",
+        "callee": "llm"
+      },
+      "culprit_change_id": "chg_6003",
+      "ruled_out_change_ids": [
+        "chg_6001",
+        "chg_6002",
+        "chg_6004"
+      ]
+    },
+    "truth": {
+      "root_cause": {
+        "kind": "service",
+        "type": "rate_limit_errors",
+        "service": "llm"
+      },
+      "culprit_change_id": "chg_6003",
+      "decoy_change_ids": [
+        "chg_6001",
+        "chg_6002",
+        "chg_6004"
+      ]
+    }
+  },
+  "speed": {
+    "wall_time_s": 184.9,
+    "iterations": 10
+  },
+  "cost": {
+    "est_cost_usd": 0.7159,
+    "tool_calls": 50,
+    "manager_calls": 21,
+    "worker_calls": 29,
+    "tokens_manager": {
+      "input": 50332,
+      "output": 3158,
+      "cache_read": 109467,
+      "cache_write": 12163
+    },
+    "tokens_workers": {
+      "input": 23372,
+      "output": 3526,
+      "cache_read": 103493,
+      "cache_write": 26799
+    }
+  },
+  "backend": {
+    "nrql_queries": 103,
+    "nrql_cache_hits": 64,
+    "nrql_retries": 0,
+    "hydration_pages": 63,
+    "hydrated_spans": 159956
+  },
+  "reliability": {
+    "tool_errors": 0,
+    "hook_denials": 0,
+    "stop": "reported",
+    "subagents": 3,
+    "completed": true
+  }
+}

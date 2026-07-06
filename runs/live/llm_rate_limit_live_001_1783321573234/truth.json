@@ -1,0 +1,30 @@
+{
+  "scenario_id": "llm_rate_limit_live_001",
+  "injection": {
+    "raw_flag_key": "llmRateLimitError",
+    "variant": "on",
+    "enabled_at_second": 300
+  },
+  "root_cause": {
+    "kind": "service",
+    "type": "rate_limit_errors",
+    "service": "llm",
+    "caller": null,
+    "callee": null
+  },
+  "culprit_change_id": "chg_6003",
+  "expected_evidence": [
+    "about half of AI assistant requests fail with rate limit errors after onset",
+    "product-reviews error spans reference HTTP 429 from the llm service",
+    "symptoms begin after change chg_6003"
+  ],
+  "decoy_change_ids": [
+    "chg_6001",
+    "chg_6002",
+    "chg_6004"
+  ],
+  "accepted_services": [
+    "llm",
+    "product-reviews"
+  ]
+}

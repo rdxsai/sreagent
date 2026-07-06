@@ -1,0 +1,39 @@
+{
+  "trace": [],
+  "findings": [
+    {
+      "service": "frontend",
+      "is_origin": false,
+      "fault_type": "none",
+      "own_server_errors": 0,
+      "shifted_signals": [],
+      "suspect_change_id": null,
+      "confidence": 0.97,
+      "evidence": [
+        "frontend has 0 server error spans out of 44,185 total spans \u2014 zero own-fault errors",
+        "request_error_rate post-onset: 0.0 (unchanged); latency_p95_ms post-onset: ~26ms (no shift); no CPU anomaly detected",
+        "traces_error_origin classified the incident as an edge fault at product-reviews \u2192 unknown callee, completely unrelated to frontend",
+        "Only one frontend change found (chg_6001, deploy at second 210: 'AI assistant widget restyled'), which postdates the onset at second 1 \u2014 ruled out as a cause",
+        "Topology confirms frontend is a downstream consumer of other services; its own work shows no degradation"
+      ]
+    },
+    {
+      "service": "product-reviews",
+      "is_origin": false,
+      "fault_type": "edge",
+      "own_server_errors": 0,
+      "shifted_signals": [],
+      "suspect_change_id": null,
+      "confidence": 0.85,
+      "evidence": [
+        "product-reviews has 0 server error spans \u2014 its own request handling succeeds",
+        "8 client-side error spans from product-reviews calling 'astronomy-llm-rate-limit' (external LLM endpoint) via operation 'chat astronomy-llm-rate-limit'",
+        "correlate_attribute_fault confirms an edge fault: product-reviews client errors to astronomy-llm-rate-limit while the callee has no server spans (call never lands)",
+        "traces_error_origin classifies fault as edge with caller=product-reviews, callee=unknown \u2014 matching the external LLM endpoint",
+        "No significant shifts in product-reviews own metrics: request_error_rate and latency_p95_ms both show no meaningful post-onset change",
+        "No changes found for product-reviews before onset \u2014 no code or config change on this service to investigate",
+        "The failure path is: frontend -> product-reviews (OK server span) -> astronomy-llm-rate-limit (external, unreachable/rate-limited)"
+      ]
+    }
+  ]
+}

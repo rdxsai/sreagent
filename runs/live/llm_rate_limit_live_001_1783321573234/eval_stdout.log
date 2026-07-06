@@ -1,0 +1,14 @@
+
+=== llm_rate_limit_live_001: WRONG ===
+  location=False culprit=True decoys_ruled_out=True type_match=True
+  reported: {'kind': 'edge', 'type': 'rate_limit', 'service': None, 'caller': 'product-reviews', 'callee': 'llm'} culprit=chg_6003 ruled_out=['chg_6001', 'chg_6002', 'chg_6004']
+  stop=reported iterations=10 tool_calls=50 (manager=21 workers=29) subagents=3 tool_errors=0 hook_denials=0
+  manager_calls={'traces_build_topology': 1, 'traces_first_error_time': 1, 'metrics_summary_all': 1, 'traces_error_origin': 1, 'topology_locate_origin': 1, 'correlate_onset_consensus': 1, 'topology_dependencies': 1, 'metrics_detect_shift': 1, 'traces_find': 2, 'traces_span_tree': 1, 'topology_compare': 1, 'changes_search': 1, 'investigate_parallel': 1, 'investigate_change': 1, 'changes_rank_culprit': 1, 'hypothesis_rule_out': 2, 'report_build_evidence': 1, 'report_self_check': 1, 'report_root_cause': 1}
+  worker_calls={'traces_first_error_time': 2, 'metrics_summary_all': 1, 'traces_error_origin': 3, 'correlate_signals': 2, 'traces_service_summary': 2, 'correlate_onset_consensus': 3, 'changes_search': 3, 'hypothesis_rule_out': 2, 'report_finding': 2, 'traces_error_summary': 1, 'traces_find': 1, 'changes_rank_culprit': 1, 'traces_span_tree': 2, 'changes_lookback': 1, 'correlate_attribute_fault': 1, 'correlate_timeline': 1, 'report_change_verdict': 1}
+    finding: frontend is_origin=False fault=none suspect=None conf=0.97
+    finding: product-reviews is_origin=False fault=edge suspect=None conf=0.85
+  tokens manager(opus): in=50332 out=3158 cache_read=109467 | workers(sonnet): in=23372 out=3526 cache_read=103493 | est_cost=$0.7159
+  feedback:
+    The trace-based onset (second 1) was misleading — it came from ad service noise, not the actual incident. The metric shift detection on product-reviews (second 588) was the reliable onset. The investigate_change subagent incorrectly rejected chg_6003 because it used the wrong onset. The changes_rank_culprit tool correctly ranked chg_6003 highest when given the right onset. Key lesson: always validate the global trace onset against the specific service's error timeline.
+window export: {'spans': 159956, 'logs': 5000, 'metrics': 5685, 'changes': 4}
+wall_time=185s nrql_queries=178 cache_hits=64 retries=0
