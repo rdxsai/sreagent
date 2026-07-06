@@ -1,0 +1,7 @@
+{"diff_touches": ["cache_ttl"], "id": "chg_8004", "kind": "runtime_config_change", "service": "quote", "summary": "quote cache TTL changed", "time": 0}
+{"diff_touches": ["targeting_model", "serving_path"], "id": "chg_8003", "kind": "deploy", "service": "ad", "summary": "ad targeting model rollout", "time": 0}
+{"diff_touches": ["fallback"], "id": "chg_8002", "kind": "runtime_config_change", "service": "recommendation", "summary": "recommendation fallback list updated", "time": 0}
+{"diff_touches": ["assets"], "id": "chg_9001", "kind": "deploy", "service": "frontend", "summary": "frontend product page assets updated", "time": 205}
+{"diff_touches": ["page_size"], "id": "chg_9002", "kind": "runtime_config_change", "service": "product-catalog", "summary": "product catalog page size adjusted", "time": 250}
+{"diff_touches": ["worker_pool", "scoring_threads"], "id": "chg_9003", "kind": "runtime_config_change", "service": "ad", "summary": "ad scoring worker pool resized", "time": 300}
+{"diff_touches": ["batch_size"], "id": "chg_9004", "kind": "runtime_config_change", "service": "recommendation", "summary": "recommendation batch size changed", "time": 345}

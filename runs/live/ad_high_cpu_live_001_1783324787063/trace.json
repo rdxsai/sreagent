@@ -1,0 +1,58 @@
+{
+  "trace": [],
+  "findings": [
+    {
+      "service": "ad",
+      "is_origin": false,
+      "fault_type": "none",
+      "own_server_errors": 0,
+      "shifted_signals": [],
+      "suspect_change_id": null,
+      "confidence": 0.97,
+      "evidence": [
+        "ad has zero server error spans (0/295 total spans errored)",
+        "ad error rate is 0.0 both before and after the log-based onset at second 512",
+        "ad p95 latency shows no significant shift post-onset (3.65ms pre vs 4.50ms post, flagged as not shifted)",
+        "No error log clusters detected for the ad service",
+        "hypothesis_rule_out confirmed: ad has no own server errors and no meaningful latency/CPU rise after onset",
+        "System-wide error traces returned no error spans at all; the only error signal was otelcol-contrib (telemetry collector) dropping export data, unrelated to ad",
+        "Two ad changes precede onset (chg_8003: targeting model rollout at t=0; chg_9003: worker pool resize at t=300) but neither correlates to any observable fault in ad's own telemetry"
+      ]
+    },
+    {
+      "service": "product-catalog",
+      "is_origin": false,
+      "fault_type": "none",
+      "own_server_errors": 0,
+      "shifted_signals": [],
+      "suspect_change_id": "chg_9002",
+      "confidence": 0.97,
+      "evidence": [
+        "traces_service_summary: 0 error spans, 0 server error spans, error_rate=0.0 across all 5214 spans",
+        "correlate_signals: request_error_rate and latency_p95_ms both showed no shift at onset second 512 (pre-mean latency 11.68ms, post-mean 3.35ms \u2014 actually improved)",
+        "logs_error_clusters: zero error log clusters for product-catalog after onset",
+        "hypothesis_rule_out: tool formally ruled out product-catalog \u2014 no own server errors, no meaningful latency/CPU rise after onset",
+        "Only change chg_9002 (page_size config at t=250) precedes onset but has no corresponding fault signal on this service; it is a benign candidate with no corroborating error evidence",
+        "traces_error_origin: no error spans found in the entire system; product-catalog is not involved in any error propagation path"
+      ]
+    },
+    {
+      "service": "frontend",
+      "is_origin": false,
+      "fault_type": "none",
+      "own_server_errors": 0,
+      "shifted_signals": [],
+      "suspect_change_id": "chg_9001",
+      "confidence": 0.97,
+      "evidence": [
+        "traces_first_error_time returned null \u2014 no error spans exist in any service",
+        "frontend has 0 server_error_spans across 14,680 total spans (traces_service_summary)",
+        "request_error_rate = 0.0 both pre- and post-onset; no shift detected (correlate_signals)",
+        "p95 latency slightly decreased post-onset (28.5ms \u2192 4.5ms); CPU flat \u2014 no degradation",
+        "hypothesis_rule_out confirmed: frontend has no own server errors and no latency/CPU rise after onset",
+        "Only system error is otelcol-contrib dropping telemetry data \u2014 infrastructure noise, not a frontend fault",
+        "One frontend change found (chg_9001: product page assets updated, t=205) but no correlated fault signal links it to any failure"
+      ]
+    }
+  ]
+}

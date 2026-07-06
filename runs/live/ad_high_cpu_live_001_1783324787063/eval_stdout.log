@@ -1,0 +1,21 @@
+
+=== ad_high_cpu_live_001: CORRECT ===
+  location=True culprit=True decoys_ruled_out=True type_match=False
+  reported: {'kind': 'service', 'type': 'latency', 'service': 'ad', 'caller': None, 'callee': None} culprit=chg_9003 ruled_out=['chg_8004', 'chg_8003', 'chg_8002', 'chg_9001', 'chg_9002', 'chg_9004']
+  stop=reported iterations=13 tool_calls=83 (manager=30 workers=53) subagents=5 tool_errors=0 hook_denials=0
+  manager_calls={'traces_build_topology': 1, 'metrics_summary_all': 1, 'traces_first_error_time': 1, 'metrics_resource_saturation': 1, 'metrics_top_movers': 1, 'traces_latency_origin': 2, 'traces_slowest_operations': 2, 'correlate_signals': 3, 'metrics_detect_shift': 3, 'correlate_metric_to_traces': 1, 'traces_span_tree': 1, 'traces_compare_pre_post': 1, 'traces_find': 2, 'metrics_series': 1, 'correlate_onset_consensus': 1, 'changes_search': 1, 'investigate_parallel': 1, 'metrics_compare_baseline': 1, 'investigate_change': 2, 'report_build_evidence': 1, 'report_self_check': 1, 'report_root_cause': 1}
+  worker_calls={'traces_first_error_time': 3, 'traces_error_origin': 2, 'traces_service_summary': 3, 'correlate_onset_consensus': 5, 'metrics_summary_all': 3, 'logs_error_clusters': 3, 'correlate_signals': 5, 'logs_first_error': 2, 'changes_search': 5, 'hypothesis_rule_out': 4, 'correlate_timeline': 3, 'report_finding': 3, 'traces_error_summary': 1, 'metrics_series': 2, 'metrics_compare_baseline': 2, 'traces_latency_origin': 2, 'metrics_detect_shift': 1, 'report_change_verdict': 2, 'changes_rank_culprit': 1, 'traces_slowest_operations': 1}
+    finding: ad is_origin=False fault=none suspect=None conf=0.97
+    finding: product-catalog is_origin=False fault=none suspect=chg_9002 conf=0.97
+    finding: frontend is_origin=False fault=none suspect=chg_9001 conf=0.97
+  tokens manager(opus): in=137799 out=4284 cache_read=145956 | workers(sonnet): in=39685 out=7045 cache_read=167635 | est_cost=$1.3580
+  feedback:
+    This was a tricky latency-only incident with no errors. The main challenges:
+    1. No error spans meant traces_error_origin and traces_first_error_time returned nothing, so onset consensus fell back to a log-based onset at 512 which was misleading — the alert fired at 360.
+    2. correlate_signals on `ad` said latency didn't shift because the threshold was too coarse for a doubling from 2.5ms to 5.6ms (small absolute values).
+    3. metrics_compare_baseline with manually chosen windows correctly detected the shift. This was the key tool.
+    4. The investigate_parallel subagents all returned "not origin" because they anchored on the log-based onset at 512 rather than the alert time of 360. For latency-only incidents without errors, the onset consensus tool is unreliable.
+    5. investigate_change was very useful for disambiguating two same-service changes.
+    6. The overall tooling is optimized for error-based incidents; latency-only degradation requires more manual baseline comparison work.
+window export: {'spans': 51595, 'logs': 5000, 'metrics': 3479, 'changes': 7}
+wall_time=251s nrql_queries=142 cache_hits=190 retries=0
