@@ -17,6 +17,7 @@ trace, NRQL query log, fixture-format window export) in each run directory.
 | 9 | ad_manual_gc_live_001               | gc pause stalls                  | CORRECT | yes | yes     | yes    | $0.50  | 40    | 0      | 2m      | ad_manual_gc_live_001_1783325696234              |
 | 10| payment_failure_live_001            | sharp error onset (control)      | CORRECT | yes | yes     | yes    | $0.53  | 37    | 0      | 2m      | payment_failure_live_001_1783326460065           |
 | 11| payment_unreachable_live_001        | edge fault, dead-victim decoy    | CORRECT | yes | yes     | yes    | $0.57  | 45    | 0      | 3m      | payment_unreachable_live_001_1783327307922       |
+| 12| cart_failure_live_001               | datastore conn failure           | CORRECT | yes | yes     | yes    | $0.67  | 43    | 0      | 3m      | cart_failure_live_001_1783328126972              |
 
 ## Notes
 
