@@ -24,11 +24,9 @@ from sentinel.tools.models import (
     TimelineInput,
     TimelineOutput,
 )
+from sentinel.tools.metrics import RED_METRICS, resource_metrics, significant_shift
 from sentinel.tools.store import TelemetryStore
 from sentinel.tools.traces import _summary
-
-# Absolute shift thresholds, sized to fault magnitudes not low-baseline noise.
-_SHIFT_THRESHOLDS = {"request_error_rate": 0.02, "latency_p95_ms": 100.0, "cpu_cores": 1.0}
 
 
 @tool(namespace="correlate")
@@ -97,15 +95,16 @@ def correlate_timeline(params: TimelineInput, store: TelemetryStore) -> Timeline
 
 @tool(namespace="correlate")
 def correlate_signals(params: SignalsInput, store: TelemetryStore) -> SignalAlignment:
-    """Align one service's error, latency, and CPU signals before vs after onset.
+    """Align one service's error, latency, and resource signals before vs after onset.
 
-    Computes each metric's mean pre-onset and post-onset and flags the ones that
-    moved. Use it to confirm in one call what a service's fault looks like in the
-    metrics: errors for a failing dependency, latency for a slow one, CPU cores
-    for a saturated one (e.g. a service whose CPU jumps but latency stays flat).
+    Computes each advertised metric's mean pre-onset and post-onset and flags the
+    ones that moved: errors for a failing dependency, latency for a slow one, and
+    every resource series the backend serves (memory_mb, cpu_utilization,
+    cpu_cores, ...) for leaks and saturation whose request signals stay flat.
     """
     signals: list[SignalShift] = []
-    for metric, threshold in _SHIFT_THRESHOLDS.items():
+    metric_names = list(RED_METRICS) + [m for m, _u in resource_metrics(store)]
+    for metric in metric_names:
         rows = store.metric_series(params.service, metric)
         if not rows:
             continue
@@ -113,7 +112,7 @@ def correlate_signals(params: SignalsInput, store: TelemetryStore) -> SignalAlig
         post = [r.value for r in rows if r.time >= params.onset_second]
         pre_mean = fmean(pre) if pre else 0.0
         post_mean = fmean(post) if post else 0.0
-        shifted = abs(post_mean - pre_mean) > threshold
+        shifted = significant_shift(metric, pre_mean, post_mean)
         signals.append(SignalShift(metric=metric, pre_mean=pre_mean, post_mean=post_mean, shifted=shifted))
     return SignalAlignment(
         service=params.service,

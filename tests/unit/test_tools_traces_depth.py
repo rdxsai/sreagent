@@ -79,3 +79,16 @@ def test_latency_origin_localizes_ad_for_gc_fault() -> None:
 def test_latency_origin_localizes_cart_for_slowdown() -> None:
     out = traces.traces_latency_origin(LatencyOriginInput(onset_second=300), CART)
     assert out.service == "cart"
+
+
+def test_emission_gaps_detects_crashloop_pattern() -> None:
+    from sentinel.tools.models import EmissionGapsInput
+
+    out = traces.traces_emission_gaps(EmissionGapsInput(bucket_seconds=30), FAILURE)
+    assert out.gaps == [] or all(g.gap_end_second > g.gap_start_second for g in out.gaps)
+
+
+def test_latency_origin_reports_non_serving_shift_in_evidence() -> None:
+    out = traces.traces_latency_origin(LatencyOriginInput(onset_second=300), AD_GC)
+    assert out.service == "ad"
+    assert any("non-serving emitter load-generator" in e for e in out.evidence)

@@ -1,8 +1,12 @@
-"""Metric tools over the two recorded RED series (request_error_rate, latency_p95_ms).
+"""Metric tools over whatever series the telemetry backend advertises.
 
-These corroborate a trace-based hypothesis with the rate/latency signal and pin
-the time of a level shift. They do not drive node-vs-edge attribution; that is
-trace-based (see the traces tools).
+Every store serves the RED pair (request_error_rate, latency_p95_ms) per
+service; backends may add resource series such as cpu_cores, cpu_utilization,
+or memory_mb. Tools discover the vocabulary from store.list_metric_keys()
+instead of hardcoding names, so a leak or saturation visible only in a
+resource metric is reachable. These corroborate a trace-based hypothesis and
+pin the time of a level shift; node-vs-edge attribution is trace-based (see
+the traces tools).
 """
 
 from __future__ import annotations
@@ -21,12 +25,12 @@ from sentinel.tools.models import (
     MetricMover,
     MetricSeriesInput,
     NoArgs,
+    ResourceShift,
     SaturationInput,
     SaturationOutput,
     Series,
     SeriesKey,
     SeriesPoint,
-    ServiceCpu,
     ServiceSnapshot,
     SummaryAllInput,
     SummaryAllOutput,
@@ -35,6 +39,31 @@ from sentinel.tools.models import (
 )
 from sentinel.registry import tool
 from sentinel.tools.store import TelemetryStore
+
+
+RED_METRICS = ("request_error_rate", "latency_p95_ms")
+
+# Absolute significance thresholds for the well-known metrics; anything the
+# backend adds beyond these is judged by relative rise instead.
+_KNOWN_SHIFT_THRESHOLDS = {"request_error_rate": 0.02, "latency_p95_ms": 100.0, "cpu_cores": 1.0}
+
+
+def resource_metrics(store: TelemetryStore) -> list[tuple[str, str]]:
+    """(metric, unit) pairs the store advertises beyond the RED pair."""
+    seen: dict[str, str] = {}
+    for _s, m, u in store.list_metric_keys():
+        if m not in RED_METRICS:
+            seen.setdefault(m, u)
+    return sorted(seen.items())
+
+
+def significant_shift(metric: str, pre: float, post: float) -> bool:
+    """True when a pre-to-post rise is meaningful for this metric: an absolute
+    threshold for the well-known series, a 1.5x relative rise otherwise."""
+    threshold = _KNOWN_SHIFT_THRESHOLDS.get(metric)
+    if threshold is not None:
+        return post - pre > threshold
+    return post > pre * 1.5 and post - pre > 1e-9
 
 
 def _pre_post(store: TelemetryStore, service: str, metric: str, onset: int) -> tuple[float, float]:
@@ -65,8 +94,11 @@ def _unit_for(store: TelemetryStore, service: str, metric: str) -> str:
 def metrics_list_series(params: NoArgs, store: TelemetryStore) -> ListSeriesOutput:
     """List the available metric series as (service, metric, unit) triples.
 
-    Use this to discover what is queryable before calling metrics_series. The
-    demo exposes request_error_rate (ratio) and latency_p95_ms (ms) per service.
+    Use this to discover what is queryable before calling metrics_series. Every
+    backend serves request_error_rate (ratio) and latency_p95_ms (ms) per
+    service; resource series like memory_mb, cpu_utilization, or cpu_cores
+    appear here when the backend provides them, and any listed metric works
+    with metrics_series, metrics_detect_shift, and metrics_top_movers.
     """
     return ListSeriesOutput(
         series=[SeriesKey(service=s, metric=m, unit=u) for s, m, u in store.list_metric_keys()]
@@ -200,20 +232,29 @@ def metrics_top_movers(params: TopMoversInput, store: TelemetryStore) -> TopMove
 
 @tool(namespace="metrics")
 def metrics_resource_saturation(params: SaturationInput, store: TelemetryStore) -> SaturationOutput:
-    """Find services whose CPU is saturated (cores in use above a threshold).
+    """Find services whose resource metrics (cpu, memory, ...) rose after onset.
 
-    Uses cpu_cores (rate of the cpu-usage counter, reliable here unlike the
-    utilization gauge). Catches a CPU-saturation fault whose request latency may
-    stay normal, so traces/latency tools would miss it. Default threshold 2 cores;
-    baseline app services sit near 0.05.
+    Sweeps every resource series the backend advertises (cpu_cores or
+    cpu_utilization, memory_mb, ...) and flags significant pre-to-post rises.
+    Catches saturation and leak faults whose request latency or error rate may
+    stay normal, so traces and RED tools would miss them. A steadily climbing or
+    sawtoothing memory_mb is a leak/crashloop signature even when the service
+    answers requests normally between restarts.
     """
-    saturated = []
-    for service in _services_with(store, "cpu_cores"):
-        pre, post = _pre_post(store, service, "cpu_cores", params.onset_second)
-        if post > params.cores_threshold:
-            saturated.append(ServiceCpu(service=service, pre_cores=pre, post_cores=post))
-    saturated.sort(key=lambda c: c.post_cores, reverse=True)
-    return SaturationOutput(saturated=saturated)
+    resources = resource_metrics(store)
+    if not resources:
+        return SaturationOutput(risers=[], note="this backend advertises no resource metrics beyond the RED pair")
+    risers = []
+    for metric, unit in resources:
+        for service in _services_with(store, metric):
+            pre, post = _pre_post(store, service, metric, params.onset_second)
+            if significant_shift(metric, pre, post):
+                risers.append(ResourceShift(service=service, metric=metric, unit=unit, pre_mean=pre, post_mean=post))
+    risers.sort(key=lambda r: (r.post_mean / r.pre_mean) if r.pre_mean > 0 else float("inf"), reverse=True)
+    note = "resource metrics checked: " + ", ".join(m for m, _u in resources)
+    if not risers:
+        note += "; no significant post-onset rise found"
+    return SaturationOutput(risers=risers, note=note)
 
 
 @tool(namespace="metrics")
@@ -243,20 +284,28 @@ def metrics_error_budget(params: ErrorBudgetInput, store: TelemetryStore) -> Err
 
 @tool(namespace="metrics")
 def metrics_summary_all(params: SummaryAllInput, store: TelemetryStore) -> SummaryAllOutput:
-    """Snapshot every service's error rate, p95 latency, and CPU at once.
+    """Snapshot every service's error rate, p95 latency, and resource metrics at once.
 
-    The dashboard view: one call gives the post-onset mean of all three RED/resource
-    signals per service, sorted by error rate. Use it to orient at the start of an
-    investigation before drilling into the worst service.
+    The dashboard view: one call gives the post-onset mean of the RED pair plus
+    every resource series the backend advertises (memory_mb, cpu_utilization,
+    cpu_cores, ...) per service, sorted by error rate. Use it to orient at the
+    start of an investigation; scan the resources column too, since leaks and
+    saturation move there while error rate and latency can stay flat.
     """
     services = sorted(
         {s for s, _m, _u in store.list_metric_keys()}
     )
+    resources = resource_metrics(store)
     snapshots = []
     for service in services:
         _pre_e, err = _pre_post(store, service, "request_error_rate", params.onset_second)
         _pre_l, lat = _pre_post(store, service, "latency_p95_ms", params.onset_second)
-        _pre_c, cpu = _pre_post(store, service, "cpu_cores", params.onset_second)
-        snapshots.append(ServiceSnapshot(service=service, error_rate=err, latency_p95_ms=lat, cpu_cores=cpu))
+        resource_means = {}
+        for metric, _unit in resources:
+            _pre_r, post_r = _pre_post(store, service, metric, params.onset_second)
+            resource_means[metric] = post_r
+        snapshots.append(
+            ServiceSnapshot(service=service, error_rate=err, latency_p95_ms=lat, resources=resource_means)
+        )
     snapshots.sort(key=lambda s: s.error_rate, reverse=True)
     return SummaryAllOutput(services=snapshots)

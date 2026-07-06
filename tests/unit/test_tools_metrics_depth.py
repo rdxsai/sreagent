@@ -28,13 +28,14 @@ def test_top_movers_surfaces_error_path() -> None:
 
 
 def test_resource_saturation_flags_ad_cpu() -> None:
-    out = metrics.metrics_resource_saturation(SaturationInput(onset_second=330, cores_threshold=2.0), AD_CPU)
-    assert any(c.service == "ad" and c.post_cores > 2.0 for c in out.saturated)
+    out = metrics.metrics_resource_saturation(SaturationInput(onset_second=330), AD_CPU)
+    assert any(r.service == "ad" and r.metric == "cpu_cores" and r.post_mean > 2.0 for r in out.risers)
 
 
 def test_resource_saturation_clean_on_payment_failure() -> None:
-    out = metrics.metrics_resource_saturation(SaturationInput(onset_second=330, cores_threshold=2.0), FAILURE)
-    assert out.saturated == []  # no CPU saturation in a payment error fault
+    out = metrics.metrics_resource_saturation(SaturationInput(onset_second=330), FAILURE)
+    assert not any(r.service == "payment" for r in out.risers)  # no resource rise in a payment error fault
+    assert "cpu_cores" in out.note
 
 
 def test_error_budget_breached_on_checkout() -> None:

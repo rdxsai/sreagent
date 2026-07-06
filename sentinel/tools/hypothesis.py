@@ -11,6 +11,7 @@ from __future__ import annotations
 from statistics import fmean
 
 from sentinel.registry import tool
+from sentinel.tools.metrics import resource_metrics, significant_shift
 from sentinel.tools.models import (
     EvidenceReport,
     GatherEvidenceInput,
@@ -25,7 +26,6 @@ _ERROR = "ERROR"
 # A 10%-relative test would trip on ~0.05-core CPU jitter and never eliminate a
 # clean service.
 _LATENCY_DELTA_MIN = 100.0
-_CPU_DELTA_MIN = 1.0
 _ERROR_RATE_DELTA_MIN = 0.02
 
 
@@ -38,12 +38,28 @@ def _delta(store: TelemetryStore, service: str, metric: str, onset: int) -> floa
     return (fmean(post) if post else 0.0) - (fmean(pre) if pre else 0.0)
 
 
+def _resource_shifts(store: TelemetryStore, service: str, onset: int) -> list[str]:
+    """Signal lines for every advertised resource metric that rose after onset."""
+    shifts: list[str] = []
+    for metric, unit in resource_metrics(store):
+        rows = store.metric_series(service, metric)
+        if not rows:
+            continue
+        pre = [r.value for r in rows if r.time < onset]
+        post = [r.value for r in rows if r.time >= onset]
+        pre_mean = fmean(pre) if pre else 0.0
+        post_mean = fmean(post) if post else 0.0
+        if significant_shift(metric, pre_mean, post_mean):
+            shifts.append(f"{service} {metric} rose from {pre_mean:.2f} to {post_mean:.2f} {unit} after onset")
+    return shifts
+
+
 def _own_fault(store: TelemetryStore, service: str, onset: int) -> bool:
     if store.find_spans(service=service, span_kind="server", status=_ERROR):
         return True
     return (
         _delta(store, service, "latency_p95_ms", onset) > _LATENCY_DELTA_MIN
-        or _delta(store, service, "cpu_cores", onset) > _CPU_DELTA_MIN
+        or bool(_resource_shifts(store, service, onset))
     )
 
 
@@ -58,7 +74,8 @@ def hypothesis_gather_evidence(params: GatherEvidenceInput, store: TelemetryStor
     """Gather supporting and refuting evidence for one root-cause hypothesis.
 
     For a service hypothesis it checks the service's own server error spans and
-    whether its error/latency/CPU shifted after onset. For an edge hypothesis it
+    whether its error rate, latency, or any advertised resource metric (memory,
+    cpu) shifted after onset. For an edge hypothesis it
     checks the caller's client errors to the callee and that the callee's own
     server spans stay clean (the edge signature). It also names the nearest change
     on the implicated service before onset as a suspect to confirm with
@@ -72,15 +89,14 @@ def hypothesis_gather_evidence(params: GatherEvidenceInput, store: TelemetryStor
         signals.append(f"{h.service} own server error spans: {n}")
         err_d = _delta(store, h.service, "request_error_rate", h.onset_second)
         lat_d = _delta(store, h.service, "latency_p95_ms", h.onset_second)
-        cpu_d = _delta(store, h.service, "cpu_cores", h.onset_second)
+        resource_signals = _resource_shifts(store, h.service, h.onset_second)
         if err_d > _ERROR_RATE_DELTA_MIN:
             signals.append(f"{h.service} error rate rose by {err_d:.2f} after onset")
         if lat_d > _LATENCY_DELTA_MIN:
             signals.append(f"{h.service} p95 latency rose by {lat_d:.0f}ms after onset")
-        if cpu_d > _CPU_DELTA_MIN:
-            signals.append(f"{h.service} cpu rose by {cpu_d:.1f} cores after onset")
+        signals.extend(resource_signals)
         suspect = _nearest_change_before(store, h.service, h.onset_second)
-        meaningful = err_d > _ERROR_RATE_DELTA_MIN or lat_d > _LATENCY_DELTA_MIN or cpu_d > _CPU_DELTA_MIN
+        meaningful = err_d > _ERROR_RATE_DELTA_MIN or lat_d > _LATENCY_DELTA_MIN or bool(resource_signals)
         supported = n > 0 or meaningful
         confidence = 0.9 if n > 0 else (0.6 if meaningful else 0.1)
     elif h.kind == "edge" and h.caller and h.callee:

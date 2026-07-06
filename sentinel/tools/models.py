@@ -563,7 +563,7 @@ class ComparePrePostOutput(BaseModel):
 
 
 class TopMoversInput(BaseModel):
-    metric: str = Field(description="request_error_rate, latency_p95_ms, or cpu_cores")
+    metric: str = Field(description="any metric from metrics_list_series (e.g. request_error_rate, latency_p95_ms, memory_mb, cpu_utilization)")
     onset_second: int = Field(ge=0, description="split point for the pre/post means")
     limit: int = Field(default=10, ge=1, le=30)
 
@@ -581,18 +581,22 @@ class TopMoversOutput(BaseModel):
 
 
 class SaturationInput(BaseModel):
-    onset_second: int = Field(default=0, ge=0, description="mean CPU is taken at/after this second")
-    cores_threshold: float = Field(default=2.0, ge=0.0, description="flag services above this many CPU cores")
+    onset_second: int = Field(default=0, ge=0, description="pre/post means split at this second")
 
 
-class ServiceCpu(BaseModel):
+class ResourceShift(BaseModel):
     service: str
-    pre_cores: float
-    post_cores: float
+    metric: str
+    unit: str
+    pre_mean: float
+    post_mean: float
 
 
 class SaturationOutput(BaseModel):
-    saturated: list[ServiceCpu] = Field(description="services whose post-onset CPU exceeds the threshold, busiest first")
+    risers: list[ResourceShift] = Field(
+        description="services whose resource metrics (cpu, memory, ...) rose significantly after onset, largest relative rise first"
+    )
+    note: str = Field(default="", description="which resource metrics the backend advertises, or why the list is empty")
 
 
 class ErrorBudgetInput(BaseModel):
@@ -618,11 +622,16 @@ class ServiceSnapshot(BaseModel):
     service: str
     error_rate: float
     latency_p95_ms: float
-    cpu_cores: float
+    resources: dict[str, float] = Field(
+        default_factory=dict,
+        description="post-onset mean of every other advertised metric (e.g. cpu_cores, memory_mb, cpu_utilization), keyed by metric name",
+    )
 
 
 class SummaryAllOutput(BaseModel):
-    services: list[ServiceSnapshot] = Field(description="per-service error/latency/cpu snapshot, highest error rate first")
+    services: list[ServiceSnapshot] = Field(
+        description="per-service snapshot of error rate, p95 latency, and all advertised resource metrics, highest error rate first"
+    )
 
 
 # ---- logs (depth) ---------------------------------------------------------
@@ -738,15 +747,32 @@ class OnsetConsensus(BaseModel):
 
 
 class LatencyOriginInput(BaseModel):
-    onset_second: int = Field(default=0, ge=0, description="only consider spans at/after this second")
-    min_self_ms: float = Field(default=50.0, ge=0.0, description="ignore services whose own work is faster than this")
+    onset_second: int = Field(default=0, ge=0, description="pre/post self-time split at this second")
+    min_self_ms: float = Field(default=50.0, ge=0.0, description="ignore post-onset spans whose own work is faster than this")
 
 
 class LatencyOrigin(BaseModel):
-    service: str | None = Field(default=None, description="the service whose own work (self-time) is slowest")
-    self_latency_p95_ms: float = Field(default=0.0, description="p95 of the service's own time, excluding downstream waits")
+    service: str | None = Field(default=None, description="the service whose own work (self-time) degraded most versus its pre-onset baseline")
+    self_latency_p95_ms: float = Field(default=0.0, description="post-onset p95 of the service's own time, excluding downstream waits")
+    baseline_p95_ms: float = Field(default=0.0, description="pre-onset p95 of the same self-time; the post-minus-pre shift is what ranks")
     self_latency_max_ms: float = 0.0
     evidence: list[str] = Field(default_factory=list)
+
+
+class EmissionGapsInput(BaseModel):
+    bucket_seconds: int = Field(default=30, ge=5, le=300, description="timeline bucket width for per-service span counts")
+
+
+class EmissionGap(BaseModel):
+    service: str
+    gap_start_second: int
+    gap_end_second: int
+    resumed: bool = Field(description="true if the service emitted spans again after the gap (crash/restart pattern)")
+
+
+class EmissionGapsOutput(BaseModel):
+    gaps: list[EmissionGap] = Field(description="windows where a normally-emitting service produced zero spans, longest first")
+    note: str = ""
 
 
 # ---- subagent contract ----------------------------------------------------

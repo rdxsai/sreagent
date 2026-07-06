@@ -8,6 +8,7 @@ from __future__ import annotations
 from statistics import fmean
 
 from sentinel.registry import tool
+from sentinel.tools.metrics import RED_METRICS, resource_metrics, significant_shift
 from sentinel.tools.models import (
     BuildEvidenceInput,
     ChangeVerdict,
@@ -25,7 +26,6 @@ REPORT_TOOL = "report_root_cause"
 FINDING_TOOL = "report_finding"
 CHANGE_VERDICT_TOOL = "report_change_verdict"
 
-_SIGNAL_THRESHOLDS = {"request_error_rate": 0.02, "latency_p95_ms": 100.0, "cpu_cores": 1.0}
 _SIGNAL_LABELS = {"request_error_rate": "error rate", "latency_p95_ms": "p95 latency", "cpu_cores": "cpu cores"}
 
 
@@ -57,7 +57,8 @@ def report_build_evidence(params: BuildEvidenceInput, store: TelemetryStore) -> 
     server_err = store.find_spans(service=svc, span_kind="server", status="ERROR")
     if server_err:
         evidence.append(f"{svc} own server spans error ({len(server_err)}): a service-fault signal")
-    for metric, threshold in _SIGNAL_THRESHOLDS.items():
+    metric_names = list(RED_METRICS) + [m for m, _u in resource_metrics(store)]
+    for metric in metric_names:
         rows = store.metric_series(svc, metric)
         if not rows:
             continue
@@ -65,8 +66,9 @@ def report_build_evidence(params: BuildEvidenceInput, store: TelemetryStore) -> 
         post = [r.value for r in rows if r.time >= onset]
         pre_mean = fmean(pre) if pre else 0.0
         post_mean = fmean(post) if post else 0.0
-        if post_mean - pre_mean > threshold:
-            evidence.append(f"{svc} {_SIGNAL_LABELS[metric]} rose from {pre_mean:.2f} to {post_mean:.2f} after onset")
+        if significant_shift(metric, pre_mean, post_mean):
+            label = _SIGNAL_LABELS.get(metric, metric)
+            evidence.append(f"{svc} {label} rose from {pre_mean:.2f} to {post_mean:.2f} after onset")
     changes = store.list_changes()
     timeline = [
         TimelineEntry(second=c.time, kind="change", detail=f"{c.id} on {c.service}: {c.summary}")
