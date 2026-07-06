@@ -1,0 +1,210 @@
+{
+  "scenario_id": "payment_unreachable_live_001",
+  "grade": {
+    "correct": true,
+    "location_correct": true,
+    "culprit_correct": true,
+    "decoys_ruled_out": true,
+    "type_match": true,
+    "reported": {
+      "root_cause": {
+        "kind": "edge",
+        "type": "connection_failure",
+        "service": null,
+        "caller": "checkout",
+        "callee": "payment"
+      },
+      "culprit_change_id": "chg_11003",
+      "ruled_out_change_ids": [
+        "chg_1003",
+        "chg_1002",
+        "chg_11001",
+        "chg_11002",
+        "chg_11004"
+      ]
+    },
+    "truth": {
+      "root_cause": {
+        "kind": "edge",
+        "type": "connection_failure",
+        "caller": "checkout",
+        "callee": "payment"
+      },
+      "culprit_change_id": "chg_11003",
+      "decoy_change_ids": [
+        "chg_11001",
+        "chg_11002",
+        "chg_11004"
+      ]
+    }
+  },
+  "report": {
+    "root_cause": {
+      "kind": "edge",
+      "type": "connection_failure",
+      "service": null,
+      "caller": "checkout",
+      "callee": "payment"
+    },
+    "culprit_change_id": "chg_11003",
+    "ruled_out_change_ids": [
+      "chg_1003",
+      "chg_1002",
+      "chg_11001",
+      "chg_11002",
+      "chg_11004"
+    ],
+    "evidence": [
+      "Edge fault: checkout client spans to payment error at ~0ms duration with no payment server spans \u2014 calls never reach payment",
+      "checkout error rate rose from 2% to 24% after onset at second 321",
+      "payment has 0 server errors and no signal shifts \u2014 it is healthy but unreachable from checkout",
+      "chg_11003 at t=300 on checkout changed payment_endpoint and grpc_target \u2014 21s before onset, directly explains misconfigured gRPC target causing connection failure",
+      "chg_11002 (credential rotation on payment at t=255) ruled out: credential issues would produce server-side auth errors, but payment has zero server errors",
+      "chg_11004 at t=340 ruled out: after onset",
+      "chg_11001 at t=210 ruled out: frontend checkout_flow change unrelated to payment connectivity",
+      "chg_1003, chg_1002 at t=0 ruled out: baseline changes, no temporal correlation"
+    ],
+    "timeline": [
+      {
+        "second": 0,
+        "kind": "change",
+        "detail": "chg_1003 on payment: payment processing configuration changed"
+      },
+      {
+        "second": 0,
+        "kind": "change",
+        "detail": "chg_1002 on recommendation: recommendation scoring parameter changed"
+      },
+      {
+        "second": 210,
+        "kind": "change",
+        "detail": "chg_11001 on frontend: frontend checkout button flow updated"
+      },
+      {
+        "second": 255,
+        "kind": "change",
+        "detail": "chg_11002 on payment: payment provider credentials rotated"
+      },
+      {
+        "second": 300,
+        "kind": "change",
+        "detail": "chg_11003 on checkout: payment client endpoint configuration changed"
+      },
+      {
+        "second": 321,
+        "kind": "onset",
+        "detail": "First error span \u2014 checkout client call to payment fails"
+      },
+      {
+        "second": 340,
+        "kind": "change",
+        "detail": "chg_11004 on currency: currency rate cache TTL changed"
+      }
+    ]
+  },
+  "calls": [
+    "traces_build_topology",
+    "traces_first_error_time",
+    "traces_error_origin",
+    "metrics_summary_all",
+    "investigate_parallel",
+    "topology_compare",
+    "investigate_change",
+    "investigate_change",
+    "changes_search",
+    "report_build_evidence",
+    "report_self_check",
+    "report_root_cause"
+  ],
+  "worker_calls": [
+    "traces_first_error_time",
+    "traces_error_origin",
+    "traces_service_summary",
+    "correlate_onset_consensus",
+    "correlate_signals",
+    "changes_lookback",
+    "hypothesis_gather_evidence",
+    "changes_rank_culprit",
+    "changes_search",
+    "report_finding",
+    "traces_first_error_time",
+    "traces_error_origin",
+    "traces_service_summary",
+    "correlate_signals",
+    "hypothesis_gather_evidence",
+    "changes_rank_culprit",
+    "changes_search",
+    "correlate_timeline",
+    "traces_span_tree",
+    "hypothesis_rule_out",
+    "report_finding",
+    "changes_search",
+    "correlate_onset_consensus",
+    "traces_error_origin",
+    "traces_span_tree",
+    "correlate_timeline",
+    "report_change_verdict",
+    "changes_search",
+    "correlate_onset_consensus",
+    "traces_error_origin",
+    "traces_span_tree",
+    "changes_rank_culprit",
+    "report_change_verdict"
+  ],
+  "internal_calls": [],
+  "subagents": 4,
+  "findings": [
+    {
+      "service": "checkout",
+      "is_origin": true,
+      "fault_type": "edge",
+      "own_server_errors": 6,
+      "shifted_signals": [
+        "request_error_rate"
+      ],
+      "suspect_change_id": "chg_11003",
+      "confidence": 0.93,
+      "evidence": [
+        "traces_error_origin classified edge fault: checkout (caller) \u2192 payment (callee), first error at second 321",
+        "checkout has 6 client-side error spans to payment, but payment has 0 own server error spans \u2014 calls never reached payment",
+        "checkout error rate shifted from 2.2% pre-onset to 23.75% post-onset (request_error_rate flagged as shifted)",
+        "chg_11003: runtime_config_change on checkout at second 300 (21s before onset) \u2014 modified payment_endpoint and grpc_target, likely misconfiguring the payment gRPC target address",
+        "chg_11003 ranked highest culprit score (10.935) among all candidate changes, far ahead of any other"
+      ]
+    },
+    {
+      "service": "payment",
+      "is_origin": false,
+      "fault_type": "edge",
+      "own_server_errors": 0,
+      "shifted_signals": [],
+      "suspect_change_id": "chg_11002",
+      "confidence": 0.87,
+      "evidence": [
+        "traces_error_origin classified fault as an EDGE fault: checkout (caller) -> payment (callee), first error at second 321",
+        "payment has 0 server error spans (traces_service_summary) and was fully ruled out as the origin service",
+        "Span tree for trace 827d3cb6459fb736b9780f8c1263dd18 shows checkout's client span to oteldemo.PaymentService/Charge erroring at depth 9 with ~0.02ms duration and NO corresponding payment server span \u2014 the call never landed",
+        "correlate_signals: payment error_rate 0.0 pre and post onset; latency_p95_ms did not shift after onset",
+        "chg_11002 \u2014 'payment provider credentials rotated' (diff_touches: credentials) \u2014 deployed at t=255s, only 66s before error onset at t=321s; rotated/invalid credentials would cause checkout's outbound TLS/auth to payment to fail immediately at the connection layer",
+        "changes_rank_culprit scored chg_11002 highest (10.794) among all payment-service changes before onset"
+      ]
+    }
+  ],
+  "tool_errors": 0,
+  "iterations": 6,
+  "stop": "reported",
+  "usage": {
+    "input": 20261,
+    "output": 2620,
+    "cache_read": 60815,
+    "cache_write": 12163
+  },
+  "worker_usage": {
+    "input": 27928,
+    "output": 4788,
+    "cache_read": 133995,
+    "cache_write": 26799
+  },
+  "feedback": "The investigation went smoothly. Key points:\n- traces_error_origin immediately classified this as an edge fault (checkout\u2192payment), which was the critical signal.\n- The two competing changes (chg_11003 on checkout touching grpc_target vs chg_11002 on payment touching credentials) required content-based reasoning: a credential rotation would typically produce server-side errors, but payment had zero server errors, so the grpc_target misconfiguration better explains ~0ms client failures with no server span.\n- investigate_parallel was efficient for confirming both services' perspectives simultaneously.\n- investigate_change gave high confidence to both candidates, requiring manual disambiguation based on fault mechanics \u2014 the tool doesn't fully account for the specific failure signature.",
+  "denials": 0
+}

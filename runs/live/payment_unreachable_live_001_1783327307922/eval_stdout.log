@@ -1,0 +1,18 @@
+
+=== payment_unreachable_live_001: CORRECT ===
+  location=True culprit=True decoys_ruled_out=True type_match=True
+  reported: {'kind': 'edge', 'type': 'connection_failure', 'service': None, 'caller': 'checkout', 'callee': 'payment'} culprit=chg_11003 ruled_out=['chg_1003', 'chg_1002', 'chg_11001', 'chg_11002', 'chg_11004']
+  stop=reported iterations=6 tool_calls=45 (manager=12 workers=33) subagents=4 tool_errors=0 hook_denials=0
+  manager_calls={'traces_build_topology': 1, 'traces_first_error_time': 1, 'traces_error_origin': 1, 'metrics_summary_all': 1, 'investigate_parallel': 1, 'topology_compare': 1, 'investigate_change': 2, 'changes_search': 1, 'report_build_evidence': 1, 'report_self_check': 1, 'report_root_cause': 1}
+  worker_calls={'traces_first_error_time': 2, 'traces_error_origin': 4, 'traces_service_summary': 2, 'correlate_onset_consensus': 3, 'correlate_signals': 2, 'changes_lookback': 1, 'hypothesis_gather_evidence': 2, 'changes_rank_culprit': 3, 'changes_search': 4, 'report_finding': 2, 'correlate_timeline': 2, 'traces_span_tree': 3, 'hypothesis_rule_out': 1, 'report_change_verdict': 2}
+    finding: checkout is_origin=True fault=edge suspect=chg_11003 conf=0.93
+    finding: payment is_origin=False fault=edge suspect=chg_11002 conf=0.87
+  tokens manager(opus): in=20261 out=2620 cache_read=60815 | workers(sonnet): in=27928 out=4788 cache_read=133995 | est_cost=$0.5695
+  feedback:
+    The investigation went smoothly. Key points:
+    - traces_error_origin immediately classified this as an edge fault (checkout→payment), which was the critical signal.
+    - The two competing changes (chg_11003 on checkout touching grpc_target vs chg_11002 on payment touching credentials) required content-based reasoning: a credential rotation would typically produce server-side errors, but payment had zero server errors, so the grpc_target misconfiguration better explains ~0ms client failures with no server span.
+    - investigate_parallel was efficient for confirming both services' perspectives simultaneously.
+    - investigate_change gave high confidence to both candidates, requiring manual disambiguation based on fault mechanics — the tool doesn't fully account for the specific failure signature.
+window export: {'spans': 51689, 'logs': 4991, 'metrics': 3507, 'changes': 6}
+wall_time=162s nrql_queries=139 cache_hits=25 retries=0
