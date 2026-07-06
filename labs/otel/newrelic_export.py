@@ -1,10 +1,12 @@
 """Generate the demo collector's extras config to stream OTLP to New Relic.
 
-The demo merges otelcol-config-extras.yml over otelcol-config.yml and yaml
-arrays are replaced wholesale, so this generator restates each pipeline's
-receivers/processors/exporters with the New Relic exporter appended. The
-rendered file contains the license key; it lives only inside the (gitignored)
-demo checkout.
+The demo collector is started with a chain of --config files (base, full,
+observability, extras). The collector's confmap merges maps recursively but
+replaces lists wholesale, so the extras file must restate each pipeline as
+merged from every earlier layer, with the New Relic exporter appended. The
+NR exporter is added to traces/metrics/logs pipelines only: New Relic's OTLP
+endpoint does not accept the profiles signal. The rendered file contains the
+license key; it lives only inside the (gitignored) demo checkout.
 """
 
 from __future__ import annotations
@@ -20,11 +22,37 @@ from sentinel.newrelic.client import load_env_var
 EXPORTER_NAME = "otlphttp/newrelic"
 DELTA_PROCESSOR = "cumulativetodelta"
 CONFIG_DIR = Path("src") / "otel-collector"
+CONFIG_LAYERS = (
+    "otelcol-config.yml",
+    "otelcol-config-full.yml",
+    "otelcol-config-observability.yml",
+)
+_NR_SIGNALS = ("traces", "metrics", "logs")
 
 
-def build_extras(base_config: dict, license_key: str) -> dict:
+def merge_configs(layers: list[dict]) -> dict:
+    """Merge config layers with collector confmap semantics: maps merge
+    recursively, lists and scalars are replaced by the later layer."""
+
+    def merge(base: object, override: object) -> object:
+        if isinstance(base, dict) and isinstance(override, dict):
+            out = dict(base)
+            for key, value in override.items():
+                out[key] = merge(out.get(key), value) if key in out else value
+            return out
+        return override
+
+    merged: dict = {}
+    for layer in layers:
+        merged = merge(merged, layer)  # type: ignore[assignment]
+    return merged
+
+
+def build_extras(merged_config: dict, license_key: str) -> dict:
     pipelines: dict = {}
-    for name, pipeline in base_config["service"]["pipelines"].items():
+    for name, pipeline in merged_config["service"]["pipelines"].items():
+        if not name.startswith(_NR_SIGNALS):
+            continue
         restated = copy.deepcopy(pipeline)
         exporters = list(restated.get("exporters", []))
         if EXPORTER_NAME not in exporters:
@@ -52,9 +80,12 @@ def apply(demo_root: Path) -> Path:
     license_key = load_env_var("NEW_RELIC_LICENSE_KEY")
     if not license_key:
         raise SystemExit("NEW_RELIC_LICENSE_KEY not set (env or .env)")
-    base_path = demo_root / CONFIG_DIR / "otelcol-config.yml"
-    base_config = yaml.safe_load(base_path.read_text(encoding="utf-8"))
-    extras = build_extras(base_config, license_key)
+    layers = [
+        yaml.safe_load((demo_root / CONFIG_DIR / layer).read_text(encoding="utf-8"))
+        for layer in CONFIG_LAYERS
+        if (demo_root / CONFIG_DIR / layer).exists()
+    ]
+    extras = build_extras(merge_configs(layers), license_key)
     out_path = demo_root / CONFIG_DIR / "otelcol-config-extras.yml"
     out_path.write_text(yaml.safe_dump(extras, sort_keys=False), encoding="utf-8")
     out_path.chmod(0o600)
