@@ -1,0 +1,4 @@
+{"diff_touches": ["checkout_form"], "id": "chg_4001", "kind": "deploy", "service": "frontend", "summary": "frontend checkout form validation updated", "time": 205}
+{"diff_touches": ["rate_source"], "id": "chg_4002", "kind": "runtime_config_change", "service": "currency", "summary": "currency conversion rate source switched", "time": 245}
+{"diff_touches": ["intl_rates", "carrier_selection"], "id": "chg_4003", "kind": "runtime_config_change", "service": "shipping", "summary": "shipping rate table updated for international zones", "time": 300}
+{"diff_touches": ["capture_timeout"], "id": "chg_4004", "kind": "runtime_config_change", "service": "payment", "summary": "payment capture timeout adjusted", "time": 345}

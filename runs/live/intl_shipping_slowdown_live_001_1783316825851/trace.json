@@ -1,0 +1,78 @@
+{
+  "trace": [],
+  "findings": [
+    {
+      "service": "fraud-detection",
+      "is_origin": false,
+      "fault_type": "none",
+      "own_server_errors": 0,
+      "shifted_signals": [],
+      "suspect_change_id": null,
+      "confidence": 0.95,
+      "evidence": [
+        "fraud-detection has 0 server-side error spans post-onset (traces_find with span_kind=server, status=ERROR returned 0 results)",
+        "fraud-detection has 0 server spans at all \u2014 it is not being called as a backend service during the incident window",
+        "The 2 error spans in fraud-detection are client spans to flagd.evaluation.v2.Service/EventStream (feature-flag streaming calls, ~600s duration) \u2014 unrelated background noise, not incident-causing",
+        "No changes exist on fraud-detection before the onset second (250) \u2014 changes_lookback returned empty",
+        "The true error origin is an edge fault: payment \u2192 unknown callee (client span at second 250, no server spans on callee), completely unrelated to fraud-detection",
+        "topology_dependencies confirms fraud-detection has no callers and no callees in the service graph, making it an isolated service uninvolved in the failing call paths"
+      ]
+    },
+    {
+      "service": "checkout",
+      "is_origin": false,
+      "fault_type": "none",
+      "own_server_errors": 0,
+      "shifted_signals": [
+        "latency_p95_ms"
+      ],
+      "suspect_change_id": null,
+      "confidence": 0.95,
+      "evidence": [
+        "checkout has 0 server error spans out of 402 total spans \u2014 no own-work failures",
+        "checkout's p95 latency shifted from 16ms to ~120ms post-onset, but this is inherited: shipping latency rose +556ms and checkout calls shipping",
+        "traces_latency_origin identifies 'recommendation' and 'shipping' as the true latency origins, not checkout",
+        "traces_error_origin classifies the fault as an edge fault at payment\u2192unknown, unrelated to checkout's own logic",
+        "no changes exist on the checkout service (changes_search returned empty), so there is no suspect change to attribute",
+        "changes ranked near onset (chg_4002 on currency, chg_4001 on frontend) do not touch checkout"
+      ]
+    },
+    {
+      "service": "payment",
+      "is_origin": false,
+      "fault_type": "edge",
+      "own_server_errors": 0,
+      "shifted_signals": [],
+      "suspect_change_id": null,
+      "confidence": 0.88,
+      "evidence": [
+        "payment has 0 server error spans post-onset \u2014 its own work does not fail",
+        "The only error spans are 2 client spans calling flagd.evaluation.v2.Service/EventStream (600s duration), indicating an edge fault toward the flagd dependency, not a self-originated failure",
+        "No payment changes precede the onset at second 250; chg_4004 (capture_timeout adjustment) is at second 345 \u2014 post-onset and ruled out as a cause",
+        "payment error rate was HIGHER before onset (pre_mean=0.20) than after (post_mean=0.04), meaning payment did not newly break at onset",
+        "traces_error_origin classified this as an edge fault with payment as caller to unknown callee (flagd); no erroring server spans exist anywhere in the call chain",
+        "topology_dependencies shows payment has no registered downstream callees, and topology_compare shows no new error edges after onset \u2014 the flagd EventStream calls are outside the normal traced topology"
+      ]
+    },
+    {
+      "service": "shipping",
+      "is_origin": false,
+      "fault_type": "latency",
+      "own_server_errors": 0,
+      "shifted_signals": [
+        "latency_p95_ms"
+      ],
+      "suspect_change_id": "chg_4003",
+      "confidence": 0.72,
+      "evidence": [
+        "Shipping has 0 server error spans \u2014 it is not the origin of the error cascade (first error was an edge fault from payment at t=250)",
+        "Shipping p95 latency rose from ~40ms pre-onset to ~596ms post-onset (shifted=true), confirming a latency fault",
+        "Shipping is a leaf service with no registered callees; its latency is entirely internal or due to external HTTP calls it makes directly",
+        "Trace 7f8a2984: shipping POST /get-quote took 613ms, with an outbound POST child span also taking 613ms \u2014 shipping itself is making a slow external call",
+        "Only shipping change is chg_4003 (runtime_config_change: 'shipping rate table updated for international zones', touching intl_rates and carrier_selection) at t=300, which postdates the t=250 onset",
+        "chg_4003 was ruled out as the cause of the initial onset (change at t=300 >= onset t=250), but it likely worsened shipping latency further \u2014 metrics_detect_shift found the largest shipping latency shift at t=1550, consistent with the config change taking full effect",
+        "Shipping is a latency victim/contributor but NOT the fault origin; the incident originated as a payment\u2192unknown edge fault"
+      ]
+    }
+  ]
+}

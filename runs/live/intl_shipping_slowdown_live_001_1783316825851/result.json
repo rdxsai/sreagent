@@ -1,0 +1,306 @@
+{
+  "scenario_id": "intl_shipping_slowdown_live_001",
+  "grade": {
+    "correct": true,
+    "location_correct": true,
+    "culprit_correct": true,
+    "decoys_ruled_out": true,
+    "type_match": true,
+    "reported": {
+      "root_cause": {
+        "kind": "service",
+        "type": "latency",
+        "service": "shipping",
+        "caller": null,
+        "callee": null
+      },
+      "culprit_change_id": "chg_4003",
+      "ruled_out_change_ids": [
+        "chg_4001",
+        "chg_4002",
+        "chg_4004"
+      ]
+    },
+    "truth": {
+      "root_cause": {
+        "kind": "service",
+        "type": "latency",
+        "service": "shipping"
+      },
+      "culprit_change_id": "chg_4003",
+      "decoy_change_ids": [
+        "chg_4001",
+        "chg_4002",
+        "chg_4004"
+      ]
+    }
+  },
+  "report": {
+    "root_cause": {
+      "kind": "service",
+      "type": "latency",
+      "service": "shipping",
+      "caller": null,
+      "callee": null
+    },
+    "culprit_change_id": "chg_4003",
+    "ruled_out_change_ids": [
+      "chg_4001",
+      "chg_4002",
+      "chg_4004"
+    ],
+    "evidence": [
+      "shipping p95 latency rose from 46ms to 618ms (13x) after onset, confirmed by correlate_signals",
+      "shipping POST /ship-order took 141,221ms in trace cded2ab76568103a9f9503f1f135ba7e at t=1551, dominating the entire checkout flow (checkout timed out at 10s waiting for it)",
+      "traces_latency_origin identifies shipping as having the highest self-time - the slowness is in shipping's own work, not a downstream dependency",
+      "chg_4003 (runtime_config_change on shipping at t=300) updated intl_rates and carrier_selection - directly explains slow carrier resolution/rate lookup in ship-order",
+      "No server errors on shipping (0 error spans) - pure latency degradation consistent with a slow-path bug triggered by updated rate/carrier config",
+      "Shipping is a leaf service with no registered downstream callees - its latency is entirely self-generated",
+      "chg_4001 ruled out: frontend checkout form validation does not affect shipping latency",
+      "chg_4002 ruled out: currency rate source change on different service, unrelated to shipping",
+      "chg_4004 ruled out: payment capture timeout at t=345, on payment service, unrelated to shipping slowness"
+    ],
+    "timeline": [
+      {
+        "second": 205,
+        "kind": "change",
+        "detail": "chg_4001 on frontend: checkout form validation updated"
+      },
+      {
+        "second": 245,
+        "kind": "change",
+        "detail": "chg_4002 on currency: conversion rate source switched"
+      },
+      {
+        "second": 300,
+        "kind": "change",
+        "detail": "chg_4003 on shipping: rate table updated for international zones (CULPRIT)"
+      },
+      {
+        "second": 345,
+        "kind": "change",
+        "detail": "chg_4004 on payment: capture timeout adjusted"
+      },
+      {
+        "second": 360,
+        "kind": "onset",
+        "detail": "UserFacingDegradation alert fires - checkout latency degradation detected"
+      }
+    ]
+  },
+  "calls": [
+    "traces_build_topology",
+    "traces_first_error_time",
+    "metrics_summary_all",
+    "traces_latency_origin",
+    "metrics_resource_saturation",
+    "metrics_top_movers",
+    "traces_slowest_operations",
+    "investigate_parallel",
+    "correlate_onset_consensus",
+    "traces_compare_pre_post",
+    "changes_search",
+    "metrics_detect_shift",
+    "correlate_metric_to_traces",
+    "changes_rank_culprit",
+    "metrics_series",
+    "traces_span_tree",
+    "metrics_series",
+    "investigate_change",
+    "correlate_signals",
+    "topology_compare",
+    "traces_find",
+    "traces_span_tree",
+    "report_build_evidence",
+    "report_self_check",
+    "report_root_cause"
+  ],
+  "worker_calls": [
+    "traces_first_error_time",
+    "traces_error_origin",
+    "traces_service_summary",
+    "correlate_onset_consensus",
+    "correlate_signals",
+    "changes_rank_culprit",
+    "topology_dependencies",
+    "traces_find",
+    "changes_lookback",
+    "traces_find",
+    "hypothesis_rule_out",
+    "traces_find",
+    "logs_error_clusters",
+    "report_finding",
+    "traces_first_error_time",
+    "metrics_summary_all",
+    "correlate_onset_consensus",
+    "correlate_signals",
+    "traces_error_origin",
+    "topology_dependencies",
+    "traces_service_summary",
+    "topology_locate_origin",
+    "traces_latency_origin",
+    "changes_rank_culprit",
+    "changes_search",
+    "correlate_metric_to_traces",
+    "traces_latency_breakdown",
+    "hypothesis_rule_out",
+    "metrics_top_movers",
+    "correlate_metric_to_traces",
+    "report_finding",
+    "traces_first_error_time",
+    "traces_error_origin",
+    "metrics_summary_all",
+    "correlate_signals",
+    "changes_rank_culprit",
+    "traces_error_summary",
+    "traces_span_tree",
+    "topology_locate_origin",
+    "changes_search",
+    "hypothesis_rule_out",
+    "correlate_onset_consensus",
+    "traces_find",
+    "changes_lookback",
+    "hypothesis_gather_evidence",
+    "traces_find",
+    "correlate_signals",
+    "topology_dependencies",
+    "traces_service_summary",
+    "topology_compare",
+    "logs_error_clusters",
+    "hypothesis_gather_evidence",
+    "metrics_top_movers",
+    "report_finding",
+    "traces_first_error_time",
+    "metrics_summary_all",
+    "correlate_onset_consensus",
+    "correlate_signals",
+    "traces_error_origin",
+    "traces_latency_origin",
+    "topology_dependencies",
+    "topology_compare",
+    "traces_slowest_operations",
+    "changes_rank_culprit",
+    "traces_service_summary",
+    "changes_search",
+    "correlate_metric_to_traces",
+    "correlate_timeline",
+    "metrics_detect_shift",
+    "hypothesis_rule_out",
+    "metrics_compare_baseline",
+    "traces_find",
+    "hypothesis_gather_evidence",
+    "traces_span_tree",
+    "metrics_compare_baseline",
+    "report_finding",
+    "correlate_onset_consensus",
+    "changes_search",
+    "correlate_signals",
+    "changes_rank_culprit",
+    "traces_latency_origin",
+    "metrics_detect_shift",
+    "traces_compare_pre_post",
+    "correlate_signals",
+    "metrics_compare_baseline",
+    "traces_span_tree",
+    "traces_service_summary",
+    "correlate_timeline",
+    "traces_find",
+    "metrics_series",
+    "traces_span_tree",
+    "report_change_verdict"
+  ],
+  "internal_calls": [],
+  "subagents": 5,
+  "findings": [
+    {
+      "service": "fraud-detection",
+      "is_origin": false,
+      "fault_type": "none",
+      "own_server_errors": 0,
+      "shifted_signals": [],
+      "suspect_change_id": null,
+      "confidence": 0.95,
+      "evidence": [
+        "fraud-detection has 0 server-side error spans post-onset (traces_find with span_kind=server, status=ERROR returned 0 results)",
+        "fraud-detection has 0 server spans at all \u2014 it is not being called as a backend service during the incident window",
+        "The 2 error spans in fraud-detection are client spans to flagd.evaluation.v2.Service/EventStream (feature-flag streaming calls, ~600s duration) \u2014 unrelated background noise, not incident-causing",
+        "No changes exist on fraud-detection before the onset second (250) \u2014 changes_lookback returned empty",
+        "The true error origin is an edge fault: payment \u2192 unknown callee (client span at second 250, no server spans on callee), completely unrelated to fraud-detection",
+        "topology_dependencies confirms fraud-detection has no callers and no callees in the service graph, making it an isolated service uninvolved in the failing call paths"
+      ]
+    },
+    {
+      "service": "checkout",
+      "is_origin": false,
+      "fault_type": "none",
+      "own_server_errors": 0,
+      "shifted_signals": [
+        "latency_p95_ms"
+      ],
+      "suspect_change_id": null,
+      "confidence": 0.95,
+      "evidence": [
+        "checkout has 0 server error spans out of 402 total spans \u2014 no own-work failures",
+        "checkout's p95 latency shifted from 16ms to ~120ms post-onset, but this is inherited: shipping latency rose +556ms and checkout calls shipping",
+        "traces_latency_origin identifies 'recommendation' and 'shipping' as the true latency origins, not checkout",
+        "traces_error_origin classifies the fault as an edge fault at payment\u2192unknown, unrelated to checkout's own logic",
+        "no changes exist on the checkout service (changes_search returned empty), so there is no suspect change to attribute",
+        "changes ranked near onset (chg_4002 on currency, chg_4001 on frontend) do not touch checkout"
+      ]
+    },
+    {
+      "service": "payment",
+      "is_origin": false,
+      "fault_type": "edge",
+      "own_server_errors": 0,
+      "shifted_signals": [],
+      "suspect_change_id": null,
+      "confidence": 0.88,
+      "evidence": [
+        "payment has 0 server error spans post-onset \u2014 its own work does not fail",
+        "The only error spans are 2 client spans calling flagd.evaluation.v2.Service/EventStream (600s duration), indicating an edge fault toward the flagd dependency, not a self-originated failure",
+        "No payment changes precede the onset at second 250; chg_4004 (capture_timeout adjustment) is at second 345 \u2014 post-onset and ruled out as a cause",
+        "payment error rate was HIGHER before onset (pre_mean=0.20) than after (post_mean=0.04), meaning payment did not newly break at onset",
+        "traces_error_origin classified this as an edge fault with payment as caller to unknown callee (flagd); no erroring server spans exist anywhere in the call chain",
+        "topology_dependencies shows payment has no registered downstream callees, and topology_compare shows no new error edges after onset \u2014 the flagd EventStream calls are outside the normal traced topology"
+      ]
+    },
+    {
+      "service": "shipping",
+      "is_origin": false,
+      "fault_type": "latency",
+      "own_server_errors": 0,
+      "shifted_signals": [
+        "latency_p95_ms"
+      ],
+      "suspect_change_id": "chg_4003",
+      "confidence": 0.72,
+      "evidence": [
+        "Shipping has 0 server error spans \u2014 it is not the origin of the error cascade (first error was an edge fault from payment at t=250)",
+        "Shipping p95 latency rose from ~40ms pre-onset to ~596ms post-onset (shifted=true), confirming a latency fault",
+        "Shipping is a leaf service with no registered callees; its latency is entirely internal or due to external HTTP calls it makes directly",
+        "Trace 7f8a2984: shipping POST /get-quote took 613ms, with an outbound POST child span also taking 613ms \u2014 shipping itself is making a slow external call",
+        "Only shipping change is chg_4003 (runtime_config_change: 'shipping rate table updated for international zones', touching intl_rates and carrier_selection) at t=300, which postdates the t=250 onset",
+        "chg_4003 was ruled out as the cause of the initial onset (change at t=300 >= onset t=250), but it likely worsened shipping latency further \u2014 metrics_detect_shift found the largest shipping latency shift at t=1550, consistent with the config change taking full effect",
+        "Shipping is a latency victim/contributor but NOT the fault origin; the incident originated as a payment\u2192unknown edge fault"
+      ]
+    }
+  ],
+  "tool_errors": 0,
+  "iterations": 13,
+  "stop": "reported",
+  "usage": {
+    "input": 105542,
+    "output": 3650,
+    "cache_read": 145956,
+    "cache_write": 12163
+  },
+  "worker_usage": {
+    "input": 146785,
+    "output": 11388,
+    "cache_read": 360374,
+    "cache_write": 46757
+  },
+  "feedback": "The investigation went smoothly. The latency origin tool was immediately helpful pointing to shipping. The key challenge was that the alert onset (360) and the biggest latency shift (1550) didn't align - the degradation was intermittent before becoming sustained. The investigate_change subagent was very effective at confirming the config change matched the fault. The traces_span_tree on the slow trace was the definitive evidence showing shipping's ship-order as the bottleneck.",
+  "denials": 0
+}

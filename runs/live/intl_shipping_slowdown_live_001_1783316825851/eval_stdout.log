@@ -1,0 +1,16 @@
+
+=== intl_shipping_slowdown_live_001: CORRECT ===
+  location=True culprit=True decoys_ruled_out=True type_match=True
+  reported: {'kind': 'service', 'type': 'latency', 'service': 'shipping', 'caller': None, 'callee': None} culprit=chg_4003 ruled_out=['chg_4001', 'chg_4002', 'chg_4004']
+  stop=reported iterations=13 tool_calls=117 (manager=25 workers=92) subagents=5 tool_errors=0 hook_denials=0
+  manager_calls={'traces_build_topology': 1, 'traces_first_error_time': 1, 'metrics_summary_all': 1, 'traces_latency_origin': 1, 'metrics_resource_saturation': 1, 'metrics_top_movers': 1, 'traces_slowest_operations': 1, 'investigate_parallel': 1, 'correlate_onset_consensus': 1, 'traces_compare_pre_post': 1, 'changes_search': 1, 'metrics_detect_shift': 1, 'correlate_metric_to_traces': 1, 'changes_rank_culprit': 1, 'metrics_series': 2, 'traces_span_tree': 2, 'investigate_change': 1, 'correlate_signals': 1, 'topology_compare': 1, 'traces_find': 1, 'report_build_evidence': 1, 'report_self_check': 1, 'report_root_cause': 1}
+  worker_calls={'traces_first_error_time': 4, 'traces_error_origin': 4, 'traces_service_summary': 5, 'correlate_onset_consensus': 5, 'correlate_signals': 7, 'changes_rank_culprit': 5, 'topology_dependencies': 4, 'traces_find': 7, 'changes_lookback': 2, 'hypothesis_rule_out': 4, 'logs_error_clusters': 2, 'report_finding': 4, 'metrics_summary_all': 3, 'topology_locate_origin': 2, 'traces_latency_origin': 3, 'changes_search': 4, 'correlate_metric_to_traces': 3, 'traces_latency_breakdown': 1, 'metrics_top_movers': 2, 'traces_error_summary': 1, 'traces_span_tree': 4, 'hypothesis_gather_evidence': 3, 'topology_compare': 2, 'traces_slowest_operations': 1, 'correlate_timeline': 2, 'metrics_detect_shift': 2, 'metrics_compare_baseline': 3, 'traces_compare_pre_post': 1, 'metrics_series': 1, 'report_change_verdict': 1}
+    finding: fraud-detection is_origin=False fault=none suspect=None conf=0.95
+    finding: checkout is_origin=False fault=none suspect=None conf=0.95
+    finding: payment is_origin=False fault=edge suspect=None conf=0.88
+    finding: shipping is_origin=False fault=latency suspect=chg_4003 conf=0.72
+  tokens manager(opus): in=105542 out=3650 cache_read=145956 | workers(sonnet): in=146785 out=11388 cache_read=360374 | est_cost=$1.6626
+  feedback:
+    The investigation went smoothly. The latency origin tool was immediately helpful pointing to shipping. The key challenge was that the alert onset (360) and the biggest latency shift (1550) didn't align - the degradation was intermittent before becoming sustained. The investigate_change subagent was very effective at confirming the config change matched the fault. The traces_span_tree on the slow trace was the definitive evidence showing shipping's ship-order as the bottleneck.
+window export: {'spans': 327413, 'logs': 4991, 'metrics': 10350, 'changes': 4}
+wall_time=334s nrql_queries=276 cache_hits=210 retries=0

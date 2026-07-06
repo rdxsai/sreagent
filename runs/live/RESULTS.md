@@ -8,6 +8,7 @@ trace, NRQL query log, fixture-format window export) in each run directory.
 |---|-------------------------------------|----------------------------------|---------|-----|---------|--------|--------|-------|--------|---------|--------------------------------------------------|
 | 1 | kafka_queue_problems_live_001       | async queue lag, no error spans  | CORRECT | yes | yes     | yes    | $0.98  | 67    | 0      | ~13m    | kafka_queue_problems_live_001_1783304357897      |
 | 2 | recommendation_cache_failure_live_001| OOM crashloop, victim noise     | WRONG   | no  | no      | no     | $1.16  | 89    | 0      | 16m     | recommendation_cache_failure_live_001_1783306411989 |
+| 3 | intl_shipping_slowdown_live_001     | dimensional latency needle       | CORRECT | yes | yes     | yes    | $1.66  | 117   | 0      | 6m      | intl_shipping_slowdown_live_001_1783316825851    |
 
 ## Notes
 

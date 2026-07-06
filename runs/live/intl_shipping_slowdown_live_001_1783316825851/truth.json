@@ -1,0 +1,26 @@
+{
+  "scenario_id": "intl_shipping_slowdown_live_001",
+  "injection": {
+    "raw_flag_key": "intlShippingSlowdown",
+    "variant": "10sec",
+    "enabled_at_second": 300
+  },
+  "root_cause": {
+    "kind": "service",
+    "type": "latency",
+    "service": "shipping",
+    "caller": null,
+    "callee": null
+  },
+  "culprit_change_id": "chg_4003",
+  "expected_evidence": [
+    "a small fraction of ship-order requests take about 10 seconds after onset",
+    "slow requests correlate with non-US shipping addresses",
+    "aggregate latency stays near normal because domestic traffic dominates"
+  ],
+  "decoy_change_ids": [
+    "chg_4001",
+    "chg_4002",
+    "chg_4004"
+  ]
+}

@@ -1,0 +1,74 @@
+{
+  "scenario_id": "intl_shipping_slowdown_live_001",
+  "diagnosis": {
+    "correct": true,
+    "location_correct": true,
+    "culprit_correct": true,
+    "decoys_ruled_out": true,
+    "type_match": true,
+    "reported": {
+      "root_cause": {
+        "kind": "service",
+        "type": "latency",
+        "service": "shipping",
+        "caller": null,
+        "callee": null
+      },
+      "culprit_change_id": "chg_4003",
+      "ruled_out_change_ids": [
+        "chg_4001",
+        "chg_4002",
+        "chg_4004"
+      ]
+    },
+    "truth": {
+      "root_cause": {
+        "kind": "service",
+        "type": "latency",
+        "service": "shipping"
+      },
+      "culprit_change_id": "chg_4003",
+      "decoy_change_ids": [
+        "chg_4001",
+        "chg_4002",
+        "chg_4004"
+      ]
+    }
+  },
+  "speed": {
+    "wall_time_s": 333.6,
+    "iterations": 13
+  },
+  "cost": {
+    "est_cost_usd": 1.6626,
+    "tool_calls": 117,
+    "manager_calls": 25,
+    "worker_calls": 92,
+    "tokens_manager": {
+      "input": 105542,
+      "output": 3650,
+      "cache_read": 145956,
+      "cache_write": 12163
+    },
+    "tokens_workers": {
+      "input": 146785,
+      "output": 11388,
+      "cache_read": 360374,
+      "cache_write": 46757
+    }
+  },
+  "backend": {
+    "nrql_queries": 223,
+    "nrql_cache_hits": 206,
+    "nrql_retries": 0,
+    "hydration_pages": 168,
+    "hydrated_spans": 327413
+  },
+  "reliability": {
+    "tool_errors": 0,
+    "hook_denials": 0,
+    "stop": "reported",
+    "subagents": 5,
+    "completed": true
+  }
+}
