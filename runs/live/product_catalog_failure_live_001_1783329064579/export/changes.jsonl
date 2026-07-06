@@ -1,0 +1,4 @@
+{"diff_touches": ["product_template"], "id": "chg_14001", "kind": "deploy", "service": "frontend", "summary": "frontend product page template updated", "time": 215}
+{"diff_touches": ["catalog_sync"], "id": "chg_14002", "kind": "runtime_config_change", "service": "recommendation", "summary": "recommendation catalog sync interval changed", "time": 255}
+{"diff_touches": ["data_source", "product_mapping"], "id": "chg_14003", "kind": "runtime_config_change", "service": "product-catalog", "summary": "product catalog data source mapping changed", "time": 300}
+{"diff_touches": ["images"], "id": "chg_14004", "kind": "deploy", "service": "image-provider", "summary": "product image pack refreshed", "time": 340}

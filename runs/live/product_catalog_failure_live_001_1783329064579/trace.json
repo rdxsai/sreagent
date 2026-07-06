@@ -1,0 +1,42 @@
+{
+  "trace": [],
+  "findings": [
+    {
+      "service": "product-catalog",
+      "is_origin": true,
+      "fault_type": "error",
+      "own_server_errors": 126,
+      "shifted_signals": [
+        "request_error_rate"
+      ],
+      "suspect_change_id": "chg_14003",
+      "confidence": 0.95,
+      "evidence": [
+        "product-catalog has 126 own server error spans \u2014 it is the deepest error frontier in the trace (depth 8, oteldemo.ProductCatalogService/GetProduct)",
+        "Error rate shifted from 0.67% pre-onset to 3.25% post-onset (second 310), a ~4.9\u00d7 increase",
+        "traces_error_origin classifies this as a service fault at product-catalog, corroborated by hypothesis_gather_evidence (confidence 0.9)",
+        "chg_14003 is a runtime_config_change ('product catalog data source mapping changed') deployed at second 300 \u2014 only 10 seconds before onset \u2014 touching data_source and product_mapping fields directly relevant to product lookup failures",
+        "Propagation confirmed: error flows from product-catalog server span \u2192 frontend client span \u2192 frontend-proxy \u2192 load-generator; all upstream services are victims"
+      ]
+    },
+    {
+      "service": "frontend",
+      "is_origin": false,
+      "fault_type": "error",
+      "own_server_errors": 242,
+      "shifted_signals": [
+        "request_error_rate"
+      ],
+      "suspect_change_id": "chg_14001",
+      "confidence": 0.95,
+      "evidence": [
+        "topology_locate_origin and traces_error_origin both identify product-catalog as the fault origin; error path is load-generator \u2192 frontend-proxy \u2192 frontend \u2192 product-catalog",
+        "Two distinct trace trees (product page and recommendations) confirm: frontend's server spans error only because product-catalog's own server spans error at the terminal depth (depth 8/9) \u2014 classic propagation victim pattern",
+        "frontend's 242 server-span errors are all on /api/products/[productId]/index and /api/recommendations, routes that call product-catalog; no independent failure path exists in frontend",
+        "chg_14001 (frontend product page template update, second 215) predates onset by 95s and only touches product_template rendering \u2014 no server-logic change that would cause independent server errors",
+        "The real culprit change is chg_14003 on product-catalog (second 300, only 10s before onset at second 310)",
+        "frontend's p95 latency did NOT shift after onset (23ms pre vs 26ms post, within noise), ruling out a latency-origin fault in frontend itself; only error_rate rose due to propagated failures"
+      ]
+    }
+  ]
+}

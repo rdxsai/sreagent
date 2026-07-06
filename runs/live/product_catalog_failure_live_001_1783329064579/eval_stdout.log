@@ -1,0 +1,14 @@
+
+=== product_catalog_failure_live_001: CORRECT ===
+  location=True culprit=True decoys_ruled_out=True type_match=False
+  reported: {'kind': 'service', 'type': 'error', 'service': 'product-catalog', 'caller': None, 'callee': None} culprit=chg_14003 ruled_out=['chg_14001', 'chg_14002', 'chg_14004']
+  stop=reported iterations=7 tool_calls=48 (manager=12 workers=36) subagents=3 tool_errors=0 hook_denials=0
+  manager_calls={'traces_build_topology': 1, 'traces_first_error_time': 1, 'metrics_summary_all': 1, 'traces_error_origin': 1, 'topology_locate_origin': 1, 'topology_compare': 1, 'investigate_parallel': 1, 'changes_rank_culprit': 1, 'investigate_change': 1, 'report_build_evidence': 1, 'report_self_check': 1, 'report_root_cause': 1}
+  worker_calls={'traces_first_error_time': 2, 'metrics_summary_all': 2, 'correlate_onset_consensus': 3, 'correlate_signals': 3, 'traces_error_origin': 2, 'changes_rank_culprit': 3, 'traces_service_summary': 1, 'changes_search': 3, 'hypothesis_gather_evidence': 2, 'traces_span_tree': 4, 'report_finding': 2, 'topology_locate_origin': 1, 'traces_error_summary': 2, 'correlate_attribute_fault': 1, 'hypothesis_rule_out': 1, 'traces_find': 2, 'correlate_timeline': 1, 'report_change_verdict': 1}
+    finding: product-catalog is_origin=True fault=error suspect=chg_14003 conf=0.95
+    finding: frontend is_origin=False fault=error suspect=chg_14001 conf=0.95
+  tokens manager(opus): in=20412 out=1918 cache_read=72978 | workers(sonnet): in=61296 out=5413 cache_read=160229 | est_cost=$0.6762
+  feedback:
+    Investigation went smoothly. The traces_error_origin and topology_locate_origin tools immediately converged on product-catalog as the service fault origin. investigate_parallel confirmed both sides (origin vs victim) efficiently. changes_rank_culprit correctly scored chg_14003 highest by combining service match and proximity. The investigate_change subagent added useful content-based confirmation (data_source/product_mapping diff_touches matching GetProduct failures). No unnecessary tool calls needed.
+window export: {'spans': 57756, 'logs': 4991, 'metrics': 3535, 'changes': 4}
+wall_time=156s nrql_queries=146 cache_hits=100 retries=0

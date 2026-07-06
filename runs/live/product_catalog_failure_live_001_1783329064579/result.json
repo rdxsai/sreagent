@@ -1,0 +1,199 @@
+{
+  "scenario_id": "product_catalog_failure_live_001",
+  "grade": {
+    "correct": true,
+    "location_correct": true,
+    "culprit_correct": true,
+    "decoys_ruled_out": true,
+    "type_match": false,
+    "reported": {
+      "root_cause": {
+        "kind": "service",
+        "type": "error",
+        "service": "product-catalog",
+        "caller": null,
+        "callee": null
+      },
+      "culprit_change_id": "chg_14003",
+      "ruled_out_change_ids": [
+        "chg_14001",
+        "chg_14002",
+        "chg_14004"
+      ]
+    },
+    "truth": {
+      "root_cause": {
+        "kind": "service",
+        "type": "product_lookup_failure",
+        "service": "product-catalog"
+      },
+      "culprit_change_id": "chg_14003",
+      "decoy_change_ids": [
+        "chg_14001",
+        "chg_14002",
+        "chg_14004"
+      ]
+    }
+  },
+  "report": {
+    "root_cause": {
+      "kind": "service",
+      "type": "error",
+      "service": "product-catalog",
+      "caller": null,
+      "callee": null
+    },
+    "culprit_change_id": "chg_14003",
+    "ruled_out_change_ids": [
+      "chg_14001",
+      "chg_14002",
+      "chg_14004"
+    ],
+    "evidence": [
+      "product-catalog own server spans error (126 spans on GetProduct): a service-fault signal at the deepest error frontier (depth 8)",
+      "product-catalog error rate rose from 0.67% to 3.25% after onset at second 310",
+      "Error propagation path: product-catalog \u2192 frontend \u2192 frontend-proxy \u2192 load-generator (all upstream services are victims)",
+      "chg_14003 on product-catalog at second 300 (10s before onset): runtime_config_change touching data_source and product_mapping \u2014 directly explains product lookup failures for one specific product",
+      "chg_14001 (frontend, second 215): template-only change, frontend has no independent failure path \u2014 ruled out",
+      "chg_14002 (recommendation, second 255): recommendation service has zero errors \u2014 ruled out",
+      "chg_14004 (image-provider, second 340): deployed after onset \u2014 ruled out by timing"
+    ],
+    "timeline": [
+      {
+        "second": 215,
+        "kind": "change",
+        "detail": "chg_14001 on frontend: frontend product page template updated"
+      },
+      {
+        "second": 255,
+        "kind": "change",
+        "detail": "chg_14002 on recommendation: recommendation catalog sync interval changed"
+      },
+      {
+        "second": 300,
+        "kind": "change",
+        "detail": "chg_14003 on product-catalog: product catalog data source mapping changed (CULPRIT)"
+      },
+      {
+        "second": 310,
+        "kind": "onset",
+        "detail": "First error span \u2014 product-catalog GetProduct begins failing for one product"
+      },
+      {
+        "second": 340,
+        "kind": "change",
+        "detail": "chg_14004 on image-provider: product image pack refreshed"
+      }
+    ]
+  },
+  "calls": [
+    "traces_build_topology",
+    "traces_first_error_time",
+    "metrics_summary_all",
+    "traces_error_origin",
+    "topology_locate_origin",
+    "topology_compare",
+    "investigate_parallel",
+    "changes_rank_culprit",
+    "investigate_change",
+    "report_build_evidence",
+    "report_self_check",
+    "report_root_cause"
+  ],
+  "worker_calls": [
+    "traces_first_error_time",
+    "metrics_summary_all",
+    "correlate_onset_consensus",
+    "correlate_signals",
+    "traces_error_origin",
+    "changes_rank_culprit",
+    "traces_service_summary",
+    "changes_search",
+    "hypothesis_gather_evidence",
+    "traces_span_tree",
+    "report_finding",
+    "traces_first_error_time",
+    "metrics_summary_all",
+    "traces_error_origin",
+    "correlate_onset_consensus",
+    "topology_locate_origin",
+    "traces_error_summary",
+    "correlate_signals",
+    "correlate_attribute_fault",
+    "hypothesis_gather_evidence",
+    "traces_span_tree",
+    "changes_search",
+    "hypothesis_rule_out",
+    "changes_rank_culprit",
+    "traces_find",
+    "traces_span_tree",
+    "correlate_timeline",
+    "report_finding",
+    "changes_search",
+    "correlate_onset_consensus",
+    "traces_error_summary",
+    "correlate_signals",
+    "changes_rank_culprit",
+    "traces_find",
+    "traces_span_tree",
+    "report_change_verdict"
+  ],
+  "internal_calls": [],
+  "subagents": 3,
+  "findings": [
+    {
+      "service": "product-catalog",
+      "is_origin": true,
+      "fault_type": "error",
+      "own_server_errors": 126,
+      "shifted_signals": [
+        "request_error_rate"
+      ],
+      "suspect_change_id": "chg_14003",
+      "confidence": 0.95,
+      "evidence": [
+        "product-catalog has 126 own server error spans \u2014 it is the deepest error frontier in the trace (depth 8, oteldemo.ProductCatalogService/GetProduct)",
+        "Error rate shifted from 0.67% pre-onset to 3.25% post-onset (second 310), a ~4.9\u00d7 increase",
+        "traces_error_origin classifies this as a service fault at product-catalog, corroborated by hypothesis_gather_evidence (confidence 0.9)",
+        "chg_14003 is a runtime_config_change ('product catalog data source mapping changed') deployed at second 300 \u2014 only 10 seconds before onset \u2014 touching data_source and product_mapping fields directly relevant to product lookup failures",
+        "Propagation confirmed: error flows from product-catalog server span \u2192 frontend client span \u2192 frontend-proxy \u2192 load-generator; all upstream services are victims"
+      ]
+    },
+    {
+      "service": "frontend",
+      "is_origin": false,
+      "fault_type": "error",
+      "own_server_errors": 242,
+      "shifted_signals": [
+        "request_error_rate"
+      ],
+      "suspect_change_id": "chg_14001",
+      "confidence": 0.95,
+      "evidence": [
+        "topology_locate_origin and traces_error_origin both identify product-catalog as the fault origin; error path is load-generator \u2192 frontend-proxy \u2192 frontend \u2192 product-catalog",
+        "Two distinct trace trees (product page and recommendations) confirm: frontend's server spans error only because product-catalog's own server spans error at the terminal depth (depth 8/9) \u2014 classic propagation victim pattern",
+        "frontend's 242 server-span errors are all on /api/products/[productId]/index and /api/recommendations, routes that call product-catalog; no independent failure path exists in frontend",
+        "chg_14001 (frontend product page template update, second 215) predates onset by 95s and only touches product_template rendering \u2014 no server-logic change that would cause independent server errors",
+        "The real culprit change is chg_14003 on product-catalog (second 300, only 10s before onset at second 310)",
+        "frontend's p95 latency did NOT shift after onset (23ms pre vs 26ms post, within noise), ruling out a latency-origin fault in frontend itself; only error_rate rose due to propagated failures"
+      ]
+    }
+  ],
+  "tool_errors": 0,
+  "iterations": 7,
+  "stop": "reported",
+  "usage": {
+    "input": 20412,
+    "output": 1918,
+    "cache_read": 72978,
+    "cache_write": 12163
+  },
+  "worker_usage": {
+    "input": 61296,
+    "output": 5413,
+    "cache_read": 160229,
+    "cache_write": 26799
+  },
+  "feedback": "Investigation went smoothly. The traces_error_origin and topology_locate_origin tools immediately converged on product-catalog as the service fault origin. investigate_parallel confirmed both sides (origin vs victim) efficiently. changes_rank_culprit correctly scored chg_14003 highest by combining service match and proximity. The investigate_change subagent added useful content-based confirmation (data_source/product_mapping diff_touches matching GetProduct failures). No unnecessary tool calls needed.",
+  "denials": 0
+}

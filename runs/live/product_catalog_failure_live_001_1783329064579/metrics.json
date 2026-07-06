@@ -1,0 +1,74 @@
+{
+  "scenario_id": "product_catalog_failure_live_001",
+  "diagnosis": {
+    "correct": true,
+    "location_correct": true,
+    "culprit_correct": true,
+    "decoys_ruled_out": true,
+    "type_match": false,
+    "reported": {
+      "root_cause": {
+        "kind": "service",
+        "type": "error",
+        "service": "product-catalog",
+        "caller": null,
+        "callee": null
+      },
+      "culprit_change_id": "chg_14003",
+      "ruled_out_change_ids": [
+        "chg_14001",
+        "chg_14002",
+        "chg_14004"
+      ]
+    },
+    "truth": {
+      "root_cause": {
+        "kind": "service",
+        "type": "product_lookup_failure",
+        "service": "product-catalog"
+      },
+      "culprit_change_id": "chg_14003",
+      "decoy_change_ids": [
+        "chg_14001",
+        "chg_14002",
+        "chg_14004"
+      ]
+    }
+  },
+  "speed": {
+    "wall_time_s": 155.7,
+    "iterations": 7
+  },
+  "cost": {
+    "est_cost_usd": 0.6762,
+    "tool_calls": 48,
+    "manager_calls": 12,
+    "worker_calls": 36,
+    "tokens_manager": {
+      "input": 20412,
+      "output": 1918,
+      "cache_read": 72978,
+      "cache_write": 12163
+    },
+    "tokens_workers": {
+      "input": 61296,
+      "output": 5413,
+      "cache_read": 160229,
+      "cache_write": 26799
+    }
+  },
+  "backend": {
+    "nrql_queries": 71,
+    "nrql_cache_hits": 100,
+    "nrql_retries": 0,
+    "hydration_pages": 28,
+    "hydrated_spans": 57756
+  },
+  "reliability": {
+    "tool_errors": 0,
+    "hook_denials": 0,
+    "stop": "reported",
+    "subagents": 3,
+    "completed": true
+  }
+}

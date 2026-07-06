@@ -1,0 +1,26 @@
+{
+  "scenario_id": "product_catalog_failure_live_001",
+  "injection": {
+    "raw_flag_key": "productCatalogFailure",
+    "variant": "on",
+    "enabled_at_second": 300
+  },
+  "root_cause": {
+    "kind": "service",
+    "type": "product_lookup_failure",
+    "service": "product-catalog",
+    "caller": null,
+    "callee": null
+  },
+  "culprit_change_id": "chg_14003",
+  "expected_evidence": [
+    "GetProduct errors for a single product id after onset",
+    "callers touching that product fail while other products stay healthy",
+    "symptoms begin after change chg_14003"
+  ],
+  "decoy_change_ids": [
+    "chg_14001",
+    "chg_14002",
+    "chg_14004"
+  ]
+}
