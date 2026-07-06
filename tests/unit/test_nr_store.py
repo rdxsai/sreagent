@@ -176,3 +176,10 @@ def test_store_stats_expose_hydration_volume():
     store.all_spans()
     assert store.stats["hydrated_spans"] == 2
     assert store.stats["hydration_pages"] >= 1
+
+
+def test_metric_series_cpu_utilization_uses_container_metric():
+    results = [{"beginTimeSeconds": W // 1000 + 30, "cpu_utilization": 0.85}]
+    store, _ = make_store([("container.cpu.utilization", results)])
+    rows = store.metric_series("ad", "cpu_utilization")
+    assert [(r.time, r.value, r.unit) for r in rows] == [(30, 0.85, "ratio")]

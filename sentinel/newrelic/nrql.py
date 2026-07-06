@@ -54,6 +54,14 @@ def metric_memory_mb(service: str, start_ms: int, end_ms: int, bucket_s: int) ->
     )
 
 
+def metric_cpu_utilization(service: str, start_ms: int, end_ms: int, bucket_s: int) -> str:
+    return (
+        "SELECT average(container.cpu.utilization) AS 'cpu_utilization' FROM Metric "
+        f"WHERE container.name = '{_q(service)}' "
+        f"TIMESERIES {bucket_s} seconds SINCE {start_ms} UNTIL {end_ms}"
+    )
+
+
 def logs_search(start_ms: int, end_ms: int, service: str | None, contains: str | None) -> str:
     conditions = []
     if service is not None:

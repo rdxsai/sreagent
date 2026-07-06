@@ -40,11 +40,17 @@ _METRIC_BUILDERS = {
     "latency_p95_ms": nrql.metric_latency_p95,
     "request_error_rate": nrql.metric_error_rate,
     "memory_mb": nrql.metric_memory_mb,
+    "cpu_utilization": nrql.metric_cpu_utilization,
 }
 
 
 class NewRelicStore:
-    METRIC_UNITS = {"latency_p95_ms": "ms", "request_error_rate": "ratio", "memory_mb": "MB"}
+    METRIC_UNITS = {
+        "latency_p95_ms": "ms",
+        "request_error_rate": "ratio",
+        "memory_mb": "MB",
+        "cpu_utilization": "ratio",
+    }
 
     def __init__(
         self,
