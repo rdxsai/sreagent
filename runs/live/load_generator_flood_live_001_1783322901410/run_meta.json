@@ -1,0 +1,23 @@
+{
+  "scenario_id": "load_generator_flood_live_001",
+  "window_start_ms": 1783322601410,
+  "window_end_ms": 1783323201591,
+  "symptom": "Storefront pages slowed down across the board under heavy traffic.",
+  "alerts": [
+    {
+      "alertname": "UserFacingDegradation",
+      "severity": "critical",
+      "starts_at_second": 360,
+      "labels": {
+        "signal": "degradation",
+        "tier": "user_facing"
+      },
+      "annotations": {
+        "summary": "Degradation detected since second 360"
+      },
+      "value": 1.0,
+      "expr": "live:loadGeneratorFloodHomepage",
+      "fingerprint": "live-load_generator_flood_live_001"
+    }
+  ]
+}

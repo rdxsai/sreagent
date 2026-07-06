@@ -1,0 +1,43 @@
+{
+  "trace": [],
+  "findings": [
+    {
+      "service": "flagd-ui",
+      "is_origin": false,
+      "fault_type": "none",
+      "own_server_errors": 0,
+      "shifted_signals": [],
+      "suspect_change_id": null,
+      "confidence": 0.97,
+      "evidence": [
+        "No error spans of any kind found for flagd-ui (total spans: 2, error spans: 0, server error spans: 0).",
+        "Error rate is 0.0 both pre- and post-onset (second 470); no shift detected.",
+        "Latency p95 did not increase after onset (pre: 0.020ms, post: 0.0ms); no latency shift.",
+        "CPU cores usage is 0 throughout the window \u2014 no saturation.",
+        "flagd-ui has no downstream callees, so no dependency failure propagation path exists.",
+        "No change events are registered for flagd-ui in the change history.",
+        "System errors at onset are attributable to load-generator (UI timeout) and otelcol-contrib (collector backpressure), not flagd-ui.",
+        "flagd-ui is called only by frontend-proxy and shows no impact on that call path."
+      ]
+    },
+    {
+      "service": "frontend-proxy",
+      "is_origin": false,
+      "fault_type": "latency",
+      "own_server_errors": 0,
+      "shifted_signals": [
+        "latency_p95_ms"
+      ],
+      "suspect_change_id": null,
+      "confidence": 0.82,
+      "evidence": [
+        "frontend-proxy p95 latency shifted from ~20ms to ~202ms at second 360, a 10x increase, but zero server error spans \u2014 pure latency fault, no errors",
+        "Slowest operation post-onset is 'router flagservice egress' client span at p95 ~4s (exemplar trace: 3909ms entirely in this client call to flagd-ui)",
+        "flagd-ui (the callee) shows no latency or error shift \u2014 the slow time originates in frontend-proxy's egress path, not the downstream service",
+        "traces_latency_origin attributes the true latency origin to 'checkout' (self-time p95 73ms), not frontend-proxy",
+        "No changes were deployed to frontend-proxy \u2014 zero results from changes_search and changes_lookback scoped to this service",
+        "load-generator runtime config change (chg_7003, t=300s) modified 'flood' and 'user_count', likely increasing traffic through frontend-proxy and contributing to latency saturation as a victim"
+      ]
+    }
+  ]
+}

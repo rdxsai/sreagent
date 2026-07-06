@@ -1,0 +1,14 @@
+
+=== load_generator_flood_live_001: WRONG ===
+  location=False culprit=True decoys_ruled_out=True type_match=False
+  reported: {'kind': 'service', 'type': 'latency', 'service': 'frontend-proxy', 'caller': None, 'callee': None} culprit=chg_7003 ruled_out=['chg_7001', 'chg_7002', 'chg_7004']
+  stop=reported iterations=10 tool_calls=83 (manager=22 workers=61) subagents=4 tool_errors=0 hook_denials=0
+  manager_calls={'traces_build_topology': 1, 'metrics_summary_all': 1, 'traces_first_error_time': 1, 'metrics_resource_saturation': 1, 'traces_latency_origin': 1, 'metrics_top_movers': 2, 'traces_slowest_operations': 1, 'topology_dependencies': 1, 'correlate_metric_to_traces': 1, 'metrics_detect_shift': 1, 'traces_span_tree': 1, 'traces_latency_breakdown': 1, 'investigate_parallel': 1, 'changes_search': 1, 'correlate_onset_consensus': 1, 'correlate_signals': 1, 'investigate_change': 2, 'report_build_evidence': 1, 'report_self_check': 1, 'report_root_cause': 1}
+  worker_calls={'traces_first_error_time': 2, 'metrics_summary_all': 2, 'correlate_onset_consensus': 4, 'changes_search': 6, 'traces_service_summary': 1, 'correlate_signals': 9, 'logs_error_clusters': 1, 'logs_first_error': 1, 'topology_dependencies': 2, 'metrics_top_movers': 5, 'report_finding': 2, 'metrics_detect_shift': 3, 'changes_rank_culprit': 3, 'traces_latency_origin': 2, 'changes_lookback': 1, 'traces_slowest_operations': 3, 'hypothesis_gather_evidence': 2, 'correlate_metric_to_traces': 2, 'traces_span_tree': 2, 'traces_latency_breakdown': 1, 'metrics_resource_saturation': 1, 'correlate_timeline': 2, 'report_change_verdict': 2, 'traces_build_topology': 1, 'traces_find': 1}
+    finding: flagd-ui is_origin=False fault=none suspect=None conf=0.97
+    finding: frontend-proxy is_origin=False fault=latency suspect=None conf=0.82
+  tokens manager(opus): in=52807 out=3362 cache_read=109467 | workers(sonnet): in=74134 out=7359 cache_read=198137 | est_cost=$0.9716
+  feedback:
+    The investigation was straightforward once the latency origin was traced through span trees. The traces_latency_origin tool was slightly misleading (pointed to checkout with 73ms self-time rather than frontend-proxy with 4s egress), but traces_slowest_operations and span tree inspection made it clear. The investigate_change tool was excellent for confirming/ruling out candidates with content-based reasoning. The main challenge was that this is a latency-only incident with zero errors, so error-focused tools were dead ends. The correlate_onset_consensus fell back to log-based onset at 470 which was inaccurate - the alert-based 360 was correct.
+window export: {'spans': 113313, 'logs': 4991, 'metrics': 3549, 'changes': 4}
+wall_time=281s nrql_queries=163 cache_hits=228 retries=0

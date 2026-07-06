@@ -1,0 +1,236 @@
+{
+  "scenario_id": "load_generator_flood_live_001",
+  "grade": {
+    "correct": false,
+    "location_correct": false,
+    "culprit_correct": true,
+    "decoys_ruled_out": true,
+    "type_match": false,
+    "reported": {
+      "root_cause": {
+        "kind": "service",
+        "type": "latency",
+        "service": "frontend-proxy",
+        "caller": null,
+        "callee": null
+      },
+      "culprit_change_id": "chg_7003",
+      "ruled_out_change_ids": [
+        "chg_7001",
+        "chg_7002",
+        "chg_7004"
+      ]
+    },
+    "truth": {
+      "root_cause": {
+        "kind": "service",
+        "type": "traffic_surge",
+        "service": "load-generator"
+      },
+      "culprit_change_id": "chg_7003",
+      "decoy_change_ids": [
+        "chg_7001",
+        "chg_7002",
+        "chg_7004"
+      ]
+    }
+  },
+  "report": {
+    "root_cause": {
+      "kind": "service",
+      "type": "latency",
+      "service": "frontend-proxy",
+      "caller": null,
+      "callee": null
+    },
+    "culprit_change_id": "chg_7003",
+    "ruled_out_change_ids": [
+      "chg_7001",
+      "chg_7002",
+      "chg_7004"
+    ],
+    "evidence": [
+      "frontend-proxy p95 latency rose from 20ms to 202ms at onset second 360 (10x increase)",
+      "Slowest post-onset operation: 'router flagservice egress' client span at p95 ~4s, consuming 100% of slow traces",
+      "flagd-ui (callee) shows zero latency/error shift - the bottleneck is in frontend-proxy's egress path under load",
+      "chg_7003 at t=300 on load-generator changed 'flood' and 'user_count', increasing synthetic traffic 60s before onset",
+      "Post-onset traces show new 'user_flood_home' operation confirming traffic flood",
+      "No errors, no CPU saturation - pure throughput-driven latency fault",
+      "chg_7004 (cart session_ttl) ruled out: cart has no latency shift and frontend-proxy never calls cart",
+      "chg_7001 (frontend banner) and chg_7002 (ad rotation) are cosmetic/unrelated changes"
+    ],
+    "timeline": [
+      {
+        "second": 220,
+        "kind": "change",
+        "detail": "chg_7001 on frontend: homepage hero banner deployed"
+      },
+      {
+        "second": 260,
+        "kind": "change",
+        "detail": "chg_7002 on ad: ad rotation interval changed"
+      },
+      {
+        "second": 300,
+        "kind": "change",
+        "detail": "chg_7003 on load-generator: load test config changed (flood, user_count)"
+      },
+      {
+        "second": 350,
+        "kind": "change",
+        "detail": "chg_7004 on cart: session TTL adjusted"
+      },
+      {
+        "second": 360,
+        "kind": "onset",
+        "detail": "frontend-proxy latency spike begins"
+      }
+    ]
+  },
+  "calls": [
+    "traces_build_topology",
+    "metrics_summary_all",
+    "traces_first_error_time",
+    "metrics_resource_saturation",
+    "traces_latency_origin",
+    "metrics_top_movers",
+    "metrics_top_movers",
+    "traces_slowest_operations",
+    "topology_dependencies",
+    "correlate_metric_to_traces",
+    "metrics_detect_shift",
+    "traces_span_tree",
+    "traces_latency_breakdown",
+    "investigate_parallel",
+    "changes_search",
+    "correlate_onset_consensus",
+    "correlate_signals",
+    "investigate_change",
+    "investigate_change",
+    "report_build_evidence",
+    "report_self_check",
+    "report_root_cause"
+  ],
+  "worker_calls": [
+    "traces_first_error_time",
+    "metrics_summary_all",
+    "correlate_onset_consensus",
+    "changes_search",
+    "traces_service_summary",
+    "correlate_signals",
+    "logs_error_clusters",
+    "logs_first_error",
+    "topology_dependencies",
+    "metrics_top_movers",
+    "metrics_top_movers",
+    "report_finding",
+    "traces_first_error_time",
+    "metrics_summary_all",
+    "correlate_onset_consensus",
+    "metrics_detect_shift",
+    "metrics_detect_shift",
+    "correlate_signals",
+    "changes_rank_culprit",
+    "traces_latency_origin",
+    "changes_search",
+    "changes_lookback",
+    "topology_dependencies",
+    "changes_search",
+    "traces_slowest_operations",
+    "hypothesis_gather_evidence",
+    "correlate_metric_to_traces",
+    "traces_span_tree",
+    "correlate_signals",
+    "traces_latency_breakdown",
+    "hypothesis_gather_evidence",
+    "changes_search",
+    "metrics_detect_shift",
+    "report_finding",
+    "changes_search",
+    "correlate_onset_consensus",
+    "metrics_top_movers",
+    "changes_rank_culprit",
+    "correlate_signals",
+    "traces_slowest_operations",
+    "correlate_signals",
+    "metrics_resource_saturation",
+    "correlate_timeline",
+    "report_change_verdict",
+    "changes_search",
+    "correlate_onset_consensus",
+    "metrics_top_movers",
+    "changes_rank_culprit",
+    "correlate_signals",
+    "correlate_signals",
+    "traces_latency_origin",
+    "traces_build_topology",
+    "correlate_signals",
+    "metrics_top_movers",
+    "correlate_signals",
+    "traces_slowest_operations",
+    "correlate_metric_to_traces",
+    "traces_find",
+    "correlate_timeline",
+    "traces_span_tree",
+    "report_change_verdict"
+  ],
+  "internal_calls": [],
+  "subagents": 4,
+  "findings": [
+    {
+      "service": "flagd-ui",
+      "is_origin": false,
+      "fault_type": "none",
+      "own_server_errors": 0,
+      "shifted_signals": [],
+      "suspect_change_id": null,
+      "confidence": 0.97,
+      "evidence": [
+        "No error spans of any kind found for flagd-ui (total spans: 2, error spans: 0, server error spans: 0).",
+        "Error rate is 0.0 both pre- and post-onset (second 470); no shift detected.",
+        "Latency p95 did not increase after onset (pre: 0.020ms, post: 0.0ms); no latency shift.",
+        "CPU cores usage is 0 throughout the window \u2014 no saturation.",
+        "flagd-ui has no downstream callees, so no dependency failure propagation path exists.",
+        "No change events are registered for flagd-ui in the change history.",
+        "System errors at onset are attributable to load-generator (UI timeout) and otelcol-contrib (collector backpressure), not flagd-ui.",
+        "flagd-ui is called only by frontend-proxy and shows no impact on that call path."
+      ]
+    },
+    {
+      "service": "frontend-proxy",
+      "is_origin": false,
+      "fault_type": "latency",
+      "own_server_errors": 0,
+      "shifted_signals": [
+        "latency_p95_ms"
+      ],
+      "suspect_change_id": null,
+      "confidence": 0.82,
+      "evidence": [
+        "frontend-proxy p95 latency shifted from ~20ms to ~202ms at second 360, a 10x increase, but zero server error spans \u2014 pure latency fault, no errors",
+        "Slowest operation post-onset is 'router flagservice egress' client span at p95 ~4s (exemplar trace: 3909ms entirely in this client call to flagd-ui)",
+        "flagd-ui (the callee) shows no latency or error shift \u2014 the slow time originates in frontend-proxy's egress path, not the downstream service",
+        "traces_latency_origin attributes the true latency origin to 'checkout' (self-time p95 73ms), not frontend-proxy",
+        "No changes were deployed to frontend-proxy \u2014 zero results from changes_search and changes_lookback scoped to this service",
+        "load-generator runtime config change (chg_7003, t=300s) modified 'flood' and 'user_count', likely increasing traffic through frontend-proxy and contributing to latency saturation as a victim"
+      ]
+    }
+  ],
+  "tool_errors": 0,
+  "iterations": 10,
+  "stop": "reported",
+  "usage": {
+    "input": 52807,
+    "output": 3362,
+    "cache_read": 109467,
+    "cache_write": 12163
+  },
+  "worker_usage": {
+    "input": 74134,
+    "output": 7359,
+    "cache_read": 198137,
+    "cache_write": 26799
+  },
+  "feedback": "The investigation was straightforward once the latency origin was traced through span trees. The traces_latency_origin tool was slightly misleading (pointed to checkout with 73ms self-time rather than frontend-proxy with 4s egress), but traces_slowest_operations and span tree inspection made it clear. The investigate_change tool was excellent for confirming/ruling out candidates with content-based reasoning. The main challenge was that this is a latency-only incident with zero errors, so error-focused tools were dead ends. The correlate_onset_consensus fell back to log-based onset at 470 which was inaccurate - the alert-based 360 was correct.",
+  "denials": 0
+}

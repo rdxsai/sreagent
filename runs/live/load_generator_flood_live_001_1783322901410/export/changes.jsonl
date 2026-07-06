@@ -1,0 +1,4 @@
+{"diff_touches": ["homepage"], "id": "chg_7001", "kind": "deploy", "service": "frontend", "summary": "frontend homepage hero banner deployed", "time": 220}
+{"diff_touches": ["rotation"], "id": "chg_7002", "kind": "runtime_config_change", "service": "ad", "summary": "ad rotation interval changed", "time": 260}
+{"diff_touches": ["flood", "user_count"], "id": "chg_7003", "kind": "runtime_config_change", "service": "load-generator", "summary": "load test configuration changed", "time": 300}
+{"diff_touches": ["session_ttl"], "id": "chg_7004", "kind": "runtime_config_change", "service": "cart", "summary": "cart session TTL adjusted", "time": 350}
