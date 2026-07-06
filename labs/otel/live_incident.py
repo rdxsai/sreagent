@@ -59,6 +59,12 @@ _RECOMMENDATION_DECOYS = (
     LiveChange("chg_3004", "ad", "runtime_config_change", "ad rotation interval changed", ("rotation",), 30),
 )
 
+_SHIPPING_DECOYS = (
+    LiveChange("chg_4001", "frontend", "deploy", "frontend checkout form validation updated", ("checkout_form",), -95),
+    LiveChange("chg_4002", "currency", "runtime_config_change", "currency conversion rate source switched", ("rate_source",), -55),
+    LiveChange("chg_4004", "payment", "runtime_config_change", "payment capture timeout adjusted", ("capture_timeout",), 45),
+)
+
 _KAFKA_DECOYS = (
     LiveChange("chg_2001", "frontend", "deploy", "frontend banner assets updated", ("banner",), -100),
     LiveChange("chg_2002", "shipping", "runtime_config_change", "shipping rate table updated", ("rate_table",), -60),
@@ -123,6 +129,25 @@ SPECS: dict[str, LiveScenarioSpec] = {
             "callers see intermittent recommendation failures while the process is down",
         ),
         soak_s=600,  # gradual leak: needs time to become visible
+    ),
+    "intl_shipping_slowdown_live_001": LiveScenarioSpec(
+        id="intl_shipping_slowdown_live_001",
+        raw_flag_key="intlShippingSlowdown",
+        variant="10sec",  # verified against pinned demo.flagd.json: {10sec, 5sec, off}
+        symptom="Some checkout confirmations intermittently take far longer than usual.",
+        alertname="UserFacingDegradation",
+        root_cause={"kind": "service", "type": "latency", "service": "shipping",
+                    "caller": None, "callee": None},
+        culprit=LiveChange("chg_4003", "shipping", "runtime_config_change",
+                           "shipping rate table updated for international zones",
+                           ("intl_rates", "carrier_selection"), 0),
+        decoys=_SHIPPING_DECOYS,
+        expected_evidence=(
+            "a small fraction of ship-order requests take about 10 seconds after onset",
+            "slow requests correlate with non-US shipping addresses",
+            "aggregate latency stays near normal because domestic traffic dominates",
+        ),
+        soak_s=900,  # ~11% of orders are international; sparse outliers need time
     ),
 }
 
