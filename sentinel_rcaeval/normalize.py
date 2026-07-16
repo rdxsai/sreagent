@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import csv
 import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from sentinel.fixtures.schemas import MetricRow
+from sentinel.fixtures.schemas import LogRow, MetricRow, TraceRow
 
 
 @dataclass(frozen=True)
@@ -89,3 +90,64 @@ def melt_metrics(frame: MetricFrame, window: Window) -> list[MetricRow]:
                     MetricRow(time=rebase(t_abs, window), service=service, metric=metric, value=value, unit=unit)
                 )
     return rows
+
+
+def _pick(row: dict[str, str], *aliases: str) -> str:
+    for a in aliases:
+        if a in row and row[a] not in (None, ""):
+            return row[a]
+    return ""
+
+
+def _downsample(rows: list, cap: int, priority) -> list:
+    if len(rows) <= cap:
+        return rows
+    keep = [r for r in rows if priority(r)]
+    if len(keep) >= cap:
+        return keep[:cap]
+    rest = [r for r in rows if not priority(r)]
+    step = len(rest) / (cap - len(keep))
+    sampled = [rest[min(len(rest) - 1, int(i * step))] for i in range(cap - len(keep))]
+    kept_ids = {id(r) for r in keep} | {id(r) for r in sampled}
+    return [r for r in rows if id(r) in kept_ids]
+
+
+def map_logs(path: Path, window: Window, cap: int = 20000) -> list[LogRow]:
+    out: list[LogRow] = []
+    with Path(path).open(newline="", encoding="utf-8") as fh:
+        for row in csv.DictReader(fh):
+            t_abs = int(float(_pick(row, "timestamp", "time")))
+            if not in_window(t_abs, window):
+                continue
+            out.append(
+                LogRow(
+                    time=rebase(t_abs, window),
+                    service=_pick(row, "service", "pod", "container") or "unknown",
+                    severity=_pick(row, "level", "severity") or "info",
+                    message=_pick(row, "message", "log", "body") or "",
+                    trace_id=_pick(row, "trace_id", "traceId") or None,
+                )
+            )
+    return _downsample(out, cap, lambda r: r.severity.upper() in {"ERROR", "ERR", "CRITICAL", "FATAL", "WARN", "WARNING"})
+
+
+def map_traces(path: Path, window: Window, cap: int = 20000) -> list[TraceRow]:
+    out: list[TraceRow] = []
+    with Path(path).open(newline="", encoding="utf-8") as fh:
+        for row in csv.DictReader(fh):
+            t_abs = int(float(_pick(row, "start_time", "timestamp", "startTime")))
+            if not in_window(t_abs, window):
+                continue
+            out.append(
+                TraceRow(
+                    trace_id=_pick(row, "trace_id", "traceId"),
+                    span_id=_pick(row, "span_id", "spanId"),
+                    parent_span_id=_pick(row, "parent_id", "parentSpanId", "parent_span_id") or None,
+                    time=rebase(t_abs, window),
+                    service=_pick(row, "service", "serviceName") or "unknown",
+                    operation=_pick(row, "operation", "operationName", "name") or "unknown",
+                    duration_ms=float(_pick(row, "duration_ms", "duration", "durationMs") or 0.0),
+                    status=_pick(row, "status", "status_code", "statusCode") or "UNSET",
+                )
+            )
+    return _downsample(out, cap, lambda r: r.status.upper() not in {"OK", "UNSET", "0", "200"})
