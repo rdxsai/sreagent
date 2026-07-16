@@ -8,7 +8,11 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+import structlog
+
 from sentinel.fixtures.schemas import LogRow, MetricRow, TraceRow
+
+log = structlog.get_logger("sentinel_rcaeval")
 
 
 @dataclass(frozen=True)
@@ -114,9 +118,14 @@ def _downsample(rows: list, cap: int, priority) -> list:
 
 def map_logs(path: Path, window: Window, cap: int = 20000) -> list[LogRow]:
     out: list[LogRow] = []
+    skipped = 0
     with Path(path).open(newline="", encoding="utf-8") as fh:
         for row in csv.DictReader(fh):
-            t_abs = int(float(_pick(row, "timestamp", "time")))
+            raw_time = _pick(row, "timestamp", "time")
+            if not raw_time:
+                skipped += 1
+                continue
+            t_abs = int(float(raw_time))
             if not in_window(t_abs, window):
                 continue
             out.append(
@@ -124,24 +133,33 @@ def map_logs(path: Path, window: Window, cap: int = 20000) -> list[LogRow]:
                     time=rebase(t_abs, window),
                     service=_pick(row, "service", "pod", "container") or "unknown",
                     severity=_pick(row, "level", "severity") or "info",
-                    message=_pick(row, "message", "log", "body") or "",
+                    message=_pick(row, "message", "log", "body") or "(no message)",
                     trace_id=_pick(row, "trace_id", "traceId") or None,
                 )
             )
+    if skipped:
+        log.info("rcaeval.map_logs.skipped_rows", path=str(path), count=skipped)
     return _downsample(out, cap, lambda r: r.severity.upper() in {"ERROR", "ERR", "CRITICAL", "FATAL", "WARN", "WARNING"})
 
 
 def map_traces(path: Path, window: Window, cap: int = 20000) -> list[TraceRow]:
     out: list[TraceRow] = []
+    skipped = 0
     with Path(path).open(newline="", encoding="utf-8") as fh:
         for row in csv.DictReader(fh):
-            t_abs = int(float(_pick(row, "start_time", "timestamp", "startTime")))
+            raw_time = _pick(row, "start_time", "timestamp", "startTime")
+            trace_id = _pick(row, "trace_id", "traceId")
+            span_id = _pick(row, "span_id", "spanId")
+            if not raw_time or not trace_id or not span_id:
+                skipped += 1
+                continue
+            t_abs = int(float(raw_time))
             if not in_window(t_abs, window):
                 continue
             out.append(
                 TraceRow(
-                    trace_id=_pick(row, "trace_id", "traceId"),
-                    span_id=_pick(row, "span_id", "spanId"),
+                    trace_id=trace_id,
+                    span_id=span_id,
                     parent_span_id=_pick(row, "parent_id", "parentSpanId", "parent_span_id") or None,
                     time=rebase(t_abs, window),
                     service=_pick(row, "service", "serviceName") or "unknown",
@@ -150,4 +168,6 @@ def map_traces(path: Path, window: Window, cap: int = 20000) -> list[TraceRow]:
                     status=_pick(row, "status", "status_code", "statusCode") or "UNSET",
                 )
             )
+    if skipped:
+        log.info("rcaeval.map_traces.skipped_rows", path=str(path), count=skipped)
     return _downsample(out, cap, lambda r: r.status.upper() not in {"OK", "UNSET", "0", "200"})
