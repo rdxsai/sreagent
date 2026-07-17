@@ -41,6 +41,12 @@ def convert_case(
     traces_all = map_traces(case.traces_path, window, cap=cap) if case.traces_path.exists() else []
     symptom, alert = synthesize_symptom(metrics, window)
 
+    available_signals = ["metrics"]
+    if case.logs_path.exists():
+        available_signals.append("logs")
+    if case.traces_path.exists():
+        available_signals.append("traces")
+
     out_dir = Path(out_root) / case.case_id
     public = out_dir / "public"
     eval_only = out_dir / "eval_only"
@@ -52,12 +58,17 @@ def convert_case(
     tr = _write_jsonl(public / "traces.jsonl", traces_all)
 
     manifest = PublicManifest(
+        # scenario_id encodes the case identity (system_service_fault_instance),
+        # matching the existing OTel fixtures' convention. It is never surfaced to
+        # the agent (build_task_prompt and the store protocol expose only
+        # symptom/alerts/window), so it does not hand over the answer; it must not
+        # be added to any agent-facing surface.
         scenario_id=case.case_id,
         source="rcaeval-re2",
         time_unit="seconds",
         window=TimeWindow(start=0, end=window.span_seconds),
         symptom=symptom,
-        available_signals=["metrics", "logs", "traces"],
+        available_signals=available_signals,
         notes=[f"converted from RCAEval; rows metrics={m} logs={lg} traces={tr} (cap={cap})"],
         alerts=[alert],
     )
