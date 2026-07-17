@@ -44,3 +44,8 @@ def test_converted_store_satisfies_protocol(tmp_path: Path):
     assert store.search_logs(severity_min="error")
     assert store.list_changes() == []
     assert store.alerts()
+    # remaining trace/log-linkage methods (completes all 13 TelemetryStore methods)
+    assert store.get_trace("t2")                      # span s2 belongs to trace t2
+    assert store.children_of("s1")                    # s2 is a child of s1
+    store.callee_of(store.all_spans()[0])             # callable; returns str | None, must not raise
+    assert store.logs_for_trace("t2")                 # the error log is linked to trace t2
