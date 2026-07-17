@@ -89,3 +89,7 @@ node_modules/
 /docs/
 /deploy/alertmanager/README.md
 /labs/otel/README.md
+
+# RCAEval raw downloads and converted fixtures (license pending confirmation)
+/rcaeval/
+/runs/rcaeval/
