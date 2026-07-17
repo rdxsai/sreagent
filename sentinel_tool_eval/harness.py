@@ -165,6 +165,7 @@ def run_task_with(
         denials=loop.denials,
         subagents=result.subagents,
         findings=result.findings,
+        trace=result.trace,
     )
 
 
