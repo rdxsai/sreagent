@@ -18,6 +18,9 @@ from sentinel.registry import tool
 from sentinel.tools.models import (
     ComparePrePostInput,
     ComparePrePostOutput,
+    EdgeLatencyInput,
+    EdgeLatencyOrigin,
+    EdgeShift,
     EmissionGap,
     EmissionGapsInput,
     EmissionGapsOutput,
@@ -126,8 +129,12 @@ def traces_latency_origin(params: LatencyOriginInput, store: TelemetryStore) -> 
     """Locate where latency originates: the service whose own work degraded most.
 
     The latency counterpart to traces_error_origin. For each span it computes self
-    time (its duration minus the slowest child it waited on), so a service that is
-    slow only because a downstream is slow does not score. Request-serving
+    time (its duration minus the total time of its direct children, so a caller
+    that waits on several SEQUENTIAL downstream calls does not bank their time as
+    its own), so a service that is slow only because a downstream is slow does not
+    score. Children are treated as sequential; overlapping parallel children can
+    understate self-time, so when no serving service shifts here, check
+    traces_edge_latency_origin and resource metrics before concluding. Request-serving
     services (those emitting server spans) are ranked by the SHIFT of their
     self-time p95 from before onset to after, not by absolute slowness, so an
     always-slow batch consumer does not win by default while a real degradation
@@ -142,8 +149,8 @@ def traces_latency_origin(params: LatencyOriginInput, store: TelemetryStore) -> 
     other_post: dict[str, list[float]] = defaultdict(list)
     servers: set[str] = set()
     for span in store.all_spans():
-        child_max = max((c.duration_ms for c in store.children_of(span.span_id)), default=0.0)
-        self_time = max(0.0, span.duration_ms - child_max)
+        child_sum = sum(c.duration_ms for c in store.children_of(span.span_id))
+        self_time = max(0.0, span.duration_ms - child_sum)
         if self_time < params.min_self_ms:
             if span_kind(span) == "server":
                 servers.add(span.service)
@@ -198,6 +205,142 @@ def traces_latency_origin(params: LatencyOriginInput, store: TelemetryStore) -> 
         self_latency_p95_ms=post_p95,
         baseline_p95_ms=base_p95,
         self_latency_max_ms=max_self,
+        evidence=evidence,
+    )
+
+
+@tool(namespace="traces")
+def traces_edge_latency_origin(params: EdgeLatencyInput, store: TelemetryStore) -> EdgeLatencyOrigin:
+    """Locate a latency origin by caller -> callee edge, for faults self-time cannot see.
+
+    A network fault (injected delay, packet loss) on a service slows every call INTO
+    it, and often its own calls OUT (both cross its interface), while its server-side
+    processing stays flat, so it never appears in self-time. This tool computes each
+    edge's client-span p95 before and after onset and attributes to the service that
+    best EXPLAINS the degradation: an edge is explained by X when it enters X, leaves
+    X, or its callee's own degraded calls chain down to X. Candidates are then held to
+    caller coverage: a fault at X should slow ALL of X's callers, so healthy callers
+    exonerate X and push attribution up to the shared upstream hop. Do NOT attribute
+    by the single largest edge shift; that edge's caller is usually a victim
+    amplifying sequential calls to the real origin. Classifies the origin as
+    network_edge (callers slowed toward it, own processing flat) or service_internal
+    (its own server spans slowed too).
+    """
+    edge_pre: dict[tuple[str, str], list[float]] = defaultdict(list)
+    edge_post: dict[tuple[str, str], list[float]] = defaultdict(list)
+    server_pre: dict[str, list[float]] = defaultdict(list)
+    server_post: dict[str, list[float]] = defaultdict(list)
+    for span in store.all_spans():
+        kind = span_kind(span)
+        if kind == "server":
+            side_s = server_post if span.time >= params.onset_second else server_pre
+            side_s[span.service].append(span.duration_ms)
+            continue
+        if kind != "client":
+            continue
+        callee = store.callee_of(span)
+        if not callee or callee == span.service:
+            continue
+        side = edge_post if span.time >= params.onset_second else edge_pre
+        side[(span.service, callee)].append(span.duration_ms)
+
+    shifts = [
+        EdgeShift(
+            caller=caller,
+            callee=callee,
+            pre_p95_ms=_p95(edge_pre.get((caller, callee), [])),
+            post_p95_ms=_p95(vals),
+            shift_ms=_p95(vals) - _p95(edge_pre.get((caller, callee), [])),
+            post_samples=len(vals),
+        )
+        for (caller, callee), vals in edge_post.items()
+    ]
+    degraded = sorted(
+        (s for s in shifts if s.shift_ms >= params.min_shift_ms),
+        key=lambda s: s.shift_ms,
+        reverse=True,
+    )
+    if not degraded:
+        return EdgeLatencyOrigin(
+            evidence=[
+                f"no caller->callee edge's client-span p95 shifted by {params.min_shift_ms:.0f}ms "
+                "after onset; the latency (if any) is not on a call edge"
+            ]
+        )
+
+    inbound: dict[str, list[EdgeShift]] = defaultdict(list)
+    deg_out: dict[str, set[str]] = defaultdict(set)
+    for s in degraded:
+        inbound[s.callee].append(s)
+        deg_out[s.caller].add(s.callee)
+
+    def _reaches(start: str, target: str) -> bool:
+        seen: set[str] = set()
+        stack = [start]
+        while stack:
+            cur = stack.pop()
+            if cur == target:
+                return True
+            if cur in seen:
+                continue
+            seen.add(cur)
+            stack.extend(deg_out.get(cur, ()))
+        return False
+
+    def _explained(s: EdgeShift, x: str) -> bool:
+        return s.callee == x or s.caller == x or _reaches(s.callee, x)
+
+    # every caller each callee has, degraded or not, for coverage (healthy callers exonerate)
+    all_callers: dict[str, set[str]] = defaultdict(set)
+    for caller, callee in set(edge_pre) | set(edge_post):
+        all_callers[callee].add(caller)
+
+    total_shift = sum(s.shift_ms for s in degraded)
+
+    def _score(x: str) -> tuple[float, float, int]:
+        explained = sum(s.shift_ms for s in degraded if _explained(s, x)) / total_shift
+        coverage = len({s.caller for s in inbound[x]}) / max(1, len(all_callers[x]))
+        return (explained, coverage, len(inbound[x]))
+
+    origin = max(inbound, key=_score)
+    explained_ratio, coverage, _ = _score(origin)
+
+    own_shift = _p95(server_post.get(origin, [])) - _p95(server_pre.get(origin, []))
+    network = own_shift < params.min_shift_ms
+    slowed = {s.caller for s in inbound[origin]}
+    evidence = [
+        f"{len(slowed)} of {len(all_callers[origin])} known caller(s) slowed toward {origin}: "
+        + ", ".join(f"{s.caller} +{s.shift_ms:.0f}ms" for s in inbound[origin])
+        + f"; {origin} explains {explained_ratio:.0%} of all edge degradation"
+    ]
+    if network:
+        evidence.append(
+            f"{origin} own server-span p95 shifted {own_shift:+.0f}ms (flat): the delay is on the "
+            f"path INTO {origin}: a network fault (delay/loss) at {origin}, not in its code"
+        )
+    else:
+        evidence.append(
+            f"{origin} own server-span p95 also shifted {own_shift:+.0f}ms: the slowdown is inside {origin}"
+        )
+    for s in degraded:
+        if s.caller == origin:
+            evidence.append(
+                f"{origin}->{s.callee} +{s.shift_ms:.0f}ms: the origin's own outbound calls degraded "
+                "too, consistent with a fault at its network interface"
+            )
+        elif s.callee != origin and _reaches(s.callee, origin):
+            evidence.append(
+                f"{s.caller}->{s.callee} +{s.shift_ms:.0f}ms is a victim path: "
+                f"{s.callee}'s own degraded calls chain down to {origin}"
+            )
+        elif s.callee != origin:
+            evidence.append(
+                f"{s.caller}->{s.callee} +{s.shift_ms:.0f}ms is not explained by {origin}: secondary or noise"
+            )
+    return EdgeLatencyOrigin(
+        origin_service=origin,
+        classification="network_edge" if network else "service_internal",
+        degraded_edges=degraded[:20],
         evidence=evidence,
     )
 

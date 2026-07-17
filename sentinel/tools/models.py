@@ -110,6 +110,9 @@ __all__ = [
     "OnsetConsensus",
     "LatencyOriginInput",
     "LatencyOrigin",
+    "EdgeLatencyInput",
+    "EdgeShift",
+    "EdgeLatencyOrigin",
     "ServiceFinding",
     "InvestigateServiceInput",
     "InvestigateParallelInput",
@@ -756,6 +759,32 @@ class LatencyOrigin(BaseModel):
     self_latency_p95_ms: float = Field(default=0.0, description="post-onset p95 of the service's own time, excluding downstream waits")
     baseline_p95_ms: float = Field(default=0.0, description="pre-onset p95 of the same self-time; the post-minus-pre shift is what ranks")
     self_latency_max_ms: float = 0.0
+    evidence: list[str] = Field(default_factory=list)
+
+
+class EdgeLatencyInput(BaseModel):
+    onset_second: int = Field(default=0, ge=0, description="pre/post edge-latency split at this second")
+    min_shift_ms: float = Field(default=50.0, ge=0.0, description="ignore edges whose p95 shifted less than this")
+
+
+class EdgeShift(BaseModel):
+    caller: str
+    callee: str
+    pre_p95_ms: float = Field(description="p95 of the caller's client spans to this callee before onset")
+    post_p95_ms: float = Field(description="p95 of the same client spans at/after onset")
+    shift_ms: float = Field(description="post minus pre; how much this hop degraded")
+    post_samples: int = Field(description="client spans backing the post-onset p95")
+
+
+class EdgeLatencyOrigin(BaseModel):
+    origin_service: str | None = Field(
+        default=None, description="the callee where the latency propagation terminates"
+    )
+    classification: str | None = Field(
+        default=None,
+        description="network_edge (callers slowed toward it, its own processing flat) or service_internal (its own server spans also slowed)",
+    )
+    degraded_edges: list[EdgeShift] = Field(default_factory=list)
     evidence: list[str] = Field(default_factory=list)
 
 
