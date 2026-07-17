@@ -23,7 +23,7 @@ def _mean_split(rows: list[MetricRow], onset: int) -> tuple[float, float]:
 
 def _top_service(metrics: list[MetricRow], metric: str, onset: int) -> tuple[str, float, float] | None:
     best: tuple[str, float, float] | None = None
-    services = {r.service for r in metrics if r.metric == metric}
+    services = sorted({r.service for r in metrics if r.metric == metric})
     for service in services:
         rows = [r for r in metrics if r.service == service and r.metric == metric]
         pre, post = _mean_split(rows, onset)
@@ -51,11 +51,17 @@ def synthesize_symptom(metrics: list[MetricRow], window: Window) -> tuple[str, D
             alertname, severity, expr = "HighLatency", "warning", "latency_p95_ms > 250"
             symptom = f"Elevated p95 latency on {service} beginning around second {onset}."
         else:
-            movers = [m for m in (_top_service(metrics, mk, onset) for mk in {r.metric for r in metrics}) if m]
+            metric_names = sorted({r.metric for r in metrics})
+            movers = [(mk, m) for mk, m in ((mk, _top_service(metrics, mk, onset)) for mk in metric_names) if m]
             if not movers:
                 raise ValueError("no post-onset metric shift to synthesize a symptom from")
-            service, _pre, post = max(movers, key=lambda m: m[2] - m[1])
-            alertname, severity, expr = "MetricAnomaly", "warning", "metric shifted after onset"
+
+            def _relative_rise(entry: tuple[str, tuple[str, float, float]]) -> float:
+                _mk, (_svc, pre, post) = entry
+                return (post - pre) / pre if pre > 0 else float("inf")
+
+            mk, (service, _pre, post) = max(movers, key=_relative_rise)
+            alertname, severity, expr = "MetricAnomaly", "warning", f"{mk} shifted after onset"
             symptom = f"Anomalous metric shift on {service} beginning around second {onset}."
     labels = {"service": service}
     alert = DerivedAlert(
