@@ -49,9 +49,12 @@ _SYSTEM_HEAD = (
     "API is your only capability. Kernel state persists across run_code calls.\n"
     "2) report_root_cause(...): submit the final report exactly once.\n\n"
     "Method: orient (topology, a metrics snapshot, onset), localize the origin (the service whose own work "
-    "failed, not a victim of a failing dependency), then find the culprit change by matching its diff_touches "
-    "to the observed fault. Prefer one script that chains dependent steps over many tiny scripts. Before "
-    "reporting, rule out EVERY other known change. Immediately before report_root_cause, include a "
+    "failed: own errors, a self-time rise, a resource-metric shift at onset, or every caller slowing toward it "
+    "while its own processing stays flat, which is a network fault on it), then find the culprit change by "
+    "matching its diff_touches to the observed fault; if the environment has no change events, report the origin "
+    "and failure type with culprit_change_id null instead of hunting for one. Prefer one script that chains "
+    "dependent steps over many tiny scripts. Before reporting, rule out EVERY other known change. Immediately "
+    "before report_root_cause, include a "
     "<feedback>...</feedback> block with frank notes on the API and the code-mode surface.\n\n"
 )
 
