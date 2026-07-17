@@ -19,6 +19,7 @@ from sentinel_rcaeval.case import parse_case_name
 from sentinel_rcaeval.truth import FAULT_CATEGORY, RCAEvalTruth
 from sentinel_tool_eval.harness import TaskResult, run_task_with
 from sentinel_tool_eval.rcaeval_grader import grade_localization
+from sentinel_tool_eval.run import _result_json
 from sentinel_tool_eval.tasks import Scenario, build_task_prompt
 
 
@@ -73,10 +74,86 @@ def run_case(client: anthropic.Anthropic, scenario: Scenario) -> TaskResult:
     return run_task_with(client, store, truth, prompt, scenario.id, grader=grade_localization)
 
 
+def build_case_scorecard(result: TaskResult) -> dict:
+    return {
+        "scenario_id": result.scenario_id,
+        "diagnosis": result.grade,
+        "speed": {"iterations": result.iterations},
+        "cost": {
+            "est_cost_usd": round(result.est_cost_usd, 4),
+            "tool_calls": result.call_count,
+            "manager_calls": len(result.calls),
+            "worker_calls": len(result.worker_calls),
+            "tokens_manager": result.usage,
+            "tokens_workers": result.worker_usage,
+        },
+        "reliability": {
+            "tool_errors": result.tool_errors,
+            "hook_denials": result.denials,
+            "stop": result.stop,
+            "subagents": result.subagents,
+            "completed": result.stop == "reported",
+        },
+    }
+
+
+def persist_case(result: TaskResult, case_dir: Path) -> None:
+    case_dir = Path(case_dir)
+    case_dir.mkdir(parents=True, exist_ok=True)
+    (case_dir / "result.json").write_text(json.dumps(_result_json(result), indent=2), encoding="utf-8")
+    (case_dir / "trace.json").write_text(
+        json.dumps({"trace": result.trace, "findings": result.findings}, indent=2), encoding="utf-8"
+    )
+    (case_dir / "metrics.json").write_text(
+        json.dumps(build_case_scorecard(result), indent=2), encoding="utf-8"
+    )
+
+
+def run_sweep(client, scenarios, out_dir: Path, max_cost: float | None = None) -> dict:
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    graded: list[tuple[str, dict]] = []
+    skipped: list[dict] = []
+    not_run: list[str] = []
+    total_cost = 0.0
+    stopped_early = False
+    for i, scenario in enumerate(scenarios):
+        if max_cost is not None and total_cost >= max_cost:
+            stopped_early = True
+            not_run = [s.id for s in scenarios[i:]]
+            print(f"COST CEILING ${max_cost:.2f} reached (spent ${total_cost:.2f}); "
+                  f"{len(not_run)} case(s) not run")
+            break
+        try:
+            result = run_case(client, scenario)
+        except Exception as exc:  # skip a broken case, never abort the sweep
+            skipped.append({"case": scenario.id, "error": repr(exc)})
+            print(f"SKIP {scenario.id}: {exc!r}")
+            continue
+        total_cost += result.est_cost_usd
+        graded.append((scenario.id, result.grade))
+        persist_case(result, out_dir / scenario.id)
+        print(f"{scenario.id}: correct={result.grade.get('correct')} "
+              f"cost=${result.est_cost_usd:.4f} cumulative=${total_cost:.2f}")
+
+    scorecard = aggregate_scorecard(graded)
+    scorecard.update({
+        "skipped": skipped,
+        "not_run": not_run,
+        "stopped_early": stopped_early,
+        "total_cost_usd": round(total_cost, 4),
+        "max_cost_usd": max_cost,
+    })
+    (out_dir / "scorecard.json").write_text(json.dumps(scorecard, indent=2), encoding="utf-8")
+    return scorecard
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run Sentinel over converted RCAEval cases.")
     parser.add_argument("--converted-root", default="rcaeval/converted")
     parser.add_argument("--out", default="runs/rcaeval")
+    parser.add_argument("--max-cost", type=float, default=20.0,
+                        help="cumulative USD ceiling; the sweep stops before running a case once reached")
     parser.add_argument("cases", nargs="*", help="optional case-id slice; empty runs all discovered cases")
     args = parser.parse_args(argv)
 
@@ -86,31 +163,10 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
-    out_dir = Path(args.out)
-    out_dir.mkdir(parents=True, exist_ok=True)
-
-    graded: list[tuple[str, dict]] = []
-    skipped: list[dict] = []
-    for scenario in scenarios:
-        try:
-            result = run_case(client, scenario)
-        except Exception as exc:  # skip a broken case, never abort the sweep
-            skipped.append({"case": scenario.id, "error": repr(exc)})
-            print(f"SKIP {scenario.id}: {exc!r}")
-            continue
-        graded.append((scenario.id, result.grade))
-        (out_dir / f"{scenario.id}.json").write_text(
-            json.dumps({"grade": result.grade, "calls": result.call_count,
-                        "cost_usd": result.est_cost_usd}, indent=2),
-            encoding="utf-8",
-        )
-        print(f"{scenario.id}: correct={result.grade.get('correct')} calls={result.call_count}")
-
-    scorecard = aggregate_scorecard(graded)
-    scorecard["skipped"] = skipped
-    (out_dir / "scorecard.json").write_text(json.dumps(scorecard, indent=2), encoding="utf-8")
+    scorecard = run_sweep(client, scenarios, Path(args.out), max_cost=args.max_cost)
     print(f"AC@1 = {scorecard['overall_ac1']:.3f} over n={scorecard['n']} "
-          f"({len(skipped)} skipped)")
+          f"(total ${scorecard['total_cost_usd']:.2f}, {len(scorecard['skipped'])} skipped, "
+          f"{'STOPPED EARLY' if scorecard['stopped_early'] else 'complete'})")
     return 0
 
 
