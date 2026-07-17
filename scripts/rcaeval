@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Run Sentinel over converted RCAEval cases and score AC@1 localization.
+# Usage: scripts/rcaeval [--converted-root DIR] [--out DIR] [case_id ...]
+set -euo pipefail
+cd "$(dirname "$0")/.."
+PY="${PYTHON:-.venv/bin/python}"
+exec "$PY" -m sentinel_tool_eval.rcaeval "$@"
