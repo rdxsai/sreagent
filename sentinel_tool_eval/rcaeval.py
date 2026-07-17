@@ -24,6 +24,8 @@ from sentinel_tool_eval.tasks import Scenario, build_task_prompt
 
 def discover_cases(converted_root: Path, slice_ids: list[str] | None = None) -> list[Scenario]:
     root = Path(converted_root)
+    if not root.is_dir():
+        return []
     dirs = sorted(p for p in root.iterdir() if (p / "public").is_dir())
     if slice_ids:
         wanted = set(slice_ids)

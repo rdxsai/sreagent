@@ -14,6 +14,10 @@ def test_discover_cases(tmp_path: Path):
     assert scenarios[0].public_dir.name == "public"
 
 
+def test_discover_cases_missing_root_returns_empty(tmp_path):
+    assert discover_cases(tmp_path / "does_not_exist") == []
+
+
 def test_aggregate_scorecard_breakdowns():
     graded = [
         ("ob_cartservice_cpu_1", {"correct": True}),
