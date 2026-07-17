@@ -5,6 +5,8 @@ Uses a tiny synthetic case in the *real* RE2 shape so it needs no downloaded dat
 import csv
 from pathlib import Path
 
+from sentinel.tools import traces
+from sentinel.tools.models import NoArgs
 from sentinel.tools.store import FixtureStore
 from sentinel_rcaeval.re2 import convert_re2_case
 from sentinel_rcaeval.truth import RCAEvalTruth
@@ -48,10 +50,17 @@ def test_re2_converts_real_shape(tmp_path: Path):
     post = [r.value for r in lat if r.time >= 180]
     assert post and max(post) == 400.0
 
-    # trace duration microseconds -> ms, and span.kind set so topology works
+    # trace duration microseconds -> ms; the callee-side span (its parent lives in
+    # another service) is a server span, the caller-side frontend span is a client
+    # span, so traces_build_topology derives a real caller -> callee edge.
     rec_span = [s for s in store.all_spans() if s.service == "recommendationservice"][0]
     assert rec_span.duration_ms == 190.0
     assert rec_span.attributes.get("span.kind") == "server"
+    fe_span = [s for s in store.all_spans() if s.service == "frontendservice"][0]
+    assert fe_span.attributes.get("span.kind") == "client"
+
+    topo = traces.traces_build_topology(NoArgs(), store)
+    assert ("frontendservice", "recommendationservice") in {(e.caller, e.callee) for e in topo.edges}
 
     truth = RCAEvalTruth.model_validate_json((out / "eval_only" / "truth.json").read_text())
     assert truth.root_cause.service == "recommendationservice"

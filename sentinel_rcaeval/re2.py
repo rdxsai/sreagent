@@ -153,13 +153,72 @@ def load_logs(case_dir: Path, window: Window, cap: int = 20000) -> list[LogRow]:
     return _downsample(out, cap, lambda r: r.severity.upper() in {"ERROR", "ERR", "CRITICAL", "FATAL", "WARN", "WARNING"})
 
 
+def _infer_span_kinds(span_service: dict[str, str], span_parent: dict[str, str]) -> dict[str, str]:
+    """Infer OTel span.kind from the trace's cross-service parent/child structure.
+
+    RCAEval's exported traces carry no span kind. But a span whose parent lives in
+    another service is definitionally the callee (server) side of a remote call,
+    and that parent is the caller (client) side. Spans in neither role are
+    internal. When a span is both (a collapsed trace with no separate client span),
+    client wins so its downstream edge is still derivable. Without this every span
+    looks like a server span, so traces_build_topology finds no client spans and
+    the dependency graph comes out empty.
+    """
+    client_ids: set[str] = set()
+    server_ids: set[str] = set()
+    for span_id, parent_id in span_parent.items():
+        parent_service = span_service.get(parent_id)
+        if parent_service is None or parent_service == span_service.get(span_id):
+            continue
+        server_ids.add(span_id)
+        client_ids.add(parent_id)
+    return {
+        span_id: ("client" if span_id in client_ids else "server" if span_id in server_ids else "internal")
+        for span_id in span_service
+    }
+
+
+def _sample_whole_traces(rows: list[TraceRow], cap: int) -> list[TraceRow]:
+    """Cap span volume by keeping whole traces (error-bearing first), never
+    individual spans, so parent/child links survive for topology building."""
+    if len(rows) <= cap:
+        return rows
+    by_trace: dict[str, list[TraceRow]] = defaultdict(list)
+    for r in rows:
+        by_trace[r.trace_id].append(r)
+
+    def has_error(spans: list[TraceRow]) -> bool:
+        return any(s.status.upper() not in {"OK", "UNSET"} for s in spans)
+
+    order = sorted(by_trace, key=lambda tid: (0 if has_error(by_trace[tid]) else 1, tid))
+    out: list[TraceRow] = []
+    for tid in order:
+        group = by_trace[tid]
+        if out and len(out) + len(group) > cap:
+            continue
+        out.extend(group)
+    return out
+
+
 def load_traces(case_dir: Path, window: Window, cap: int = 20000) -> list[TraceRow]:
     path = case_dir / "traces.csv"
     if not path.exists():
         return []
-    out: list[TraceRow] = []
+    # span kind is derived from the full parent/child graph (a child's parent can
+    # be just outside the window), so collect service/parent for every span first.
+    span_service: dict[str, str] = {}
+    span_parent: dict[str, str] = {}
+    windowed: list[tuple[str, str, str | None, int, str, str, float, bool]] = []
     with path.open(newline="") as fh:
         for row in csv.DictReader(fh):
+            span_id = (row.get("spanID") or row.get("spanId") or "").strip()
+            if not span_id:
+                continue
+            service = (row.get("serviceName") or "unknown") or "unknown"
+            span_service[span_id] = service
+            parent = (row.get("parentSpanID") or "").strip()
+            if parent:
+                span_parent[span_id] = parent
             raw = (row.get("startTimeMillis") or "").strip()
             if not raw:
                 continue
@@ -170,8 +229,7 @@ def load_traces(case_dir: Path, window: Window, cap: int = 20000) -> list[TraceR
             if not in_window(t, window):
                 continue
             trace_id = (row.get("traceID") or row.get("traceId") or "").strip()
-            span_id = (row.get("spanID") or row.get("spanId") or "").strip()
-            if not trace_id or not span_id:
+            if not trace_id:
                 continue
             sc = (row.get("statusCode") or "").strip()
             try:
@@ -182,20 +240,26 @@ def load_traces(case_dir: Path, window: Window, cap: int = 20000) -> list[TraceR
                 dur_ms = float((row.get("duration") or "0").strip() or 0.0) / 1000.0  # microseconds -> ms
             except ValueError:
                 dur_ms = 0.0
-            out.append(
-                TraceRow(
-                    trace_id=trace_id,
-                    span_id=span_id,
-                    parent_span_id=(row.get("parentSpanID") or None),
-                    time=rebase(t, window),
-                    service=(row.get("serviceName") or "unknown") or "unknown",
-                    operation=(row.get("operationName") or "unknown") or "unknown",
-                    duration_ms=max(dur_ms, 0.0),
-                    status="ERROR" if is_err else "OK",
-                    attributes={"span.kind": "server"},
-                )
+            windowed.append(
+                (trace_id, span_id, parent or None, rebase(t, window), service,
+                 (row.get("operationName") or "unknown") or "unknown", max(dur_ms, 0.0), is_err)
             )
-    return _downsample(out, cap, lambda r: r.status.upper() not in {"OK", "UNSET"})
+    kinds = _infer_span_kinds(span_service, span_parent)
+    rows = [
+        TraceRow(
+            trace_id=trace_id,
+            span_id=span_id,
+            parent_span_id=parent,
+            time=t,
+            service=service,
+            operation=operation,
+            duration_ms=dur_ms,
+            status="ERROR" if is_err else "OK",
+            attributes={"span.kind": kinds.get(span_id, "internal")},
+        )
+        for (trace_id, span_id, parent, t, service, operation, dur_ms, is_err) in windowed
+    ]
+    return _sample_whole_traces(rows, cap)
 
 
 def convert_re2_case(
