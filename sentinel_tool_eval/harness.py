@@ -123,6 +123,7 @@ def run_task_with(
     worker_model: str = DEFAULT_WORKER_MODEL,
     effort: str = DEFAULT_EFFORT,
     tool_mode: str = DEFAULT_TOOL_MODE,
+    grader=grade,
 ) -> TaskResult:
     if tool_mode == "code":
         backend = os.environ.get("SENTINEL_CODE_BACKEND", "docker")
@@ -133,7 +134,7 @@ def run_task_with(
             output_budget=DEFAULT_OUTPUT_BUDGET, max_tool_calls=DEFAULT_MANAGER_MAX_TOOL_CALLS,
             executor_backend=backend,
         )
-        return _build_code_result(scenario_id, result, grade(result.report, truth))
+        return _build_code_result(scenario_id, result, grader(result.report, truth))
     result = run_manager(
         client,
         store,
@@ -152,7 +153,7 @@ def run_task_with(
     return TaskResult(
         scenario_id=scenario_id,
         report=result.report,
-        grade=grade(result.report, truth),
+        grade=grader(result.report, truth),
         calls=loop.calls,
         worker_calls=result.worker_calls,
         tool_errors=loop.tool_errors,
