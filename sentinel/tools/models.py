@@ -378,7 +378,7 @@ class EvidenceReport(BaseModel):
 
 class RootCauseReport(BaseModel):
     root_cause: RootCause
-    culprit_change_id: str = Field(min_length=1)
+    culprit_change_id: str | None = Field(default=None)
     ruled_out_change_ids: list[str] = Field(default_factory=list)
     evidence: list[str] = Field(default_factory=list)
     timeline: list[TimelineEntry] = Field(default_factory=list)

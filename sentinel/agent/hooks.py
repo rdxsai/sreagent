@@ -235,12 +235,15 @@ def report_issues(report_input: dict[str, Any], store: Any) -> list[str]:
     if kind not in ("service", "edge"):
         issues.append("root_cause kind must be 'service' or 'edge'")
     culprit = report_input.get("culprit_change_id")
+    known = {c.id for c in store.list_changes()} if store is not None else set()
     if not culprit:
-        issues.append("culprit_change_id is empty")
-    elif store is not None:
-        known = {c.id for c in store.list_changes()}
-        if culprit not in known:
-            issues.append(f"culprit_change_id {culprit} is not a known change")
+        # A null culprit is valid only when the environment has no change events
+        # (e.g. a chaos-injected fault with no deploy to blame); otherwise the
+        # agent must identify one of the known changes.
+        if known:
+            issues.append("culprit_change_id is empty")
+    elif store is not None and culprit not in known:
+        issues.append(f"culprit_change_id {culprit} is not a known change")
     if culprit and culprit in (report_input.get("ruled_out_change_ids") or []):
         issues.append("culprit_change_id also appears in ruled_out_change_ids")
     return issues
