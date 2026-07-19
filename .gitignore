@@ -93,3 +93,4 @@ node_modules/
 # RCAEval raw downloads and converted fixtures (license pending confirmation)
 /rcaeval/
 /runs/rcaeval/
+runs/
