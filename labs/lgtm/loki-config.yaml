@@ -1,0 +1,35 @@
+# Minimal single-binary Loki (3.x, tsdb v13 schema), OTLP ingest at /otlp.
+# reject_old_samples off so rebased telemetry is accepted.
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+  log_level: warn
+
+common:
+  instance_addr: 127.0.0.1
+  path_prefix: /loki
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+  replication_factor: 1
+  ring:
+    kvstore:
+      store: inmemory
+
+schema_config:
+  configs:
+    - from: 2020-10-24
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+limits_config:
+  allow_structured_metadata: true
+  reject_old_samples: false
+  reject_old_samples_max_age: 8760h
+  volume_enabled: true

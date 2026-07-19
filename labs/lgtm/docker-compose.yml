@@ -1,0 +1,47 @@
+# Per-scenario live telemetry stack: OTLP collector -> Prometheus / Loki / Tempo.
+# The feeder pushes a converted RCAEval scenario in via OTLP; the agent later
+# queries the three stores live. Named volumes make the scenario persist across
+# up/down. Project name isolates this scenario; parameterize name + ports per
+# scenario when batching. First scenario: ob_recommendationservice_cpu_1.
+name: lgtm-ob-recommendationservice-cpu-1
+
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --web.enable-remote-write-receiver
+      - --storage.tsdb.retention.time=90d
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prom-data:/prometheus
+    ports: ["${PROM_PORT:-9090}:9090"]
+
+  loki:
+    image: grafana/loki:3.2.0
+    command: -config.file=/etc/loki/loki-config.yaml
+    volumes:
+      - ./loki-config.yaml:/etc/loki/loki-config.yaml:ro
+      - loki-data:/loki
+    ports: ["${LOKI_PORT:-3100}:3100"]
+
+  tempo:
+    image: grafana/tempo:2.6.0
+    command: -config.file=/etc/tempo/tempo.yaml
+    volumes:
+      - ./tempo.yaml:/etc/tempo/tempo.yaml:ro
+      - tempo-data:/var/tempo
+    ports: ["${TEMPO_PORT:-3200}:3200"]
+
+  collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    command: ["--config=/etc/otel/collector.yaml"]
+    volumes:
+      - ./collector.yaml:/etc/otel/collector.yaml:ro
+    ports: ["${OTLP_PORT:-4318}:4318"]
+    depends_on: [prometheus, loki, tempo]
+
+volumes:
+  prom-data:
+  loki-data:
+  tempo-data:

@@ -1,0 +1,5 @@
+# No scrape targets: metrics arrive via the remote-write receiver (enabled by
+# the --web.enable-remote-write-receiver flag in the compose command).
+global:
+  scrape_interval: 30s
+  evaluation_interval: 30s
