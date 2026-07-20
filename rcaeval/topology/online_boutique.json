@@ -1,0 +1,41 @@
+{
+  "_derived_from": "ob_recommendationservice_cpu_1 (traces_build_topology, frozen)",
+  "edges": [
+    [
+      "checkoutservice",
+      "currencyservice"
+    ],
+    [
+      "checkoutservice",
+      "emailservice"
+    ],
+    [
+      "checkoutservice",
+      "paymentservice"
+    ],
+    [
+      "checkoutservice",
+      "productcatalogservice"
+    ],
+    [
+      "frontendservice",
+      "checkoutservice"
+    ],
+    [
+      "frontendservice",
+      "currencyservice"
+    ],
+    [
+      "frontendservice",
+      "productcatalogservice"
+    ],
+    [
+      "frontendservice",
+      "recommendationservice"
+    ],
+    [
+      "recommendationservice",
+      "productcatalogservice"
+    ]
+  ]
+}

@@ -92,5 +92,7 @@ node_modules/
 
 # RCAEval raw downloads and converted fixtures (license pending confirmation)
 /rcaeval/
+!/rcaeval/topology/
+!/rcaeval/topology/*.json
 /runs/rcaeval/
 runs/

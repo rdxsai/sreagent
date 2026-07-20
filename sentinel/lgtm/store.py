@@ -244,15 +244,18 @@ class LgtmStore:
         )
 
     def _enum_trace_ids(self) -> list[str]:
-        """Enumerate trace ids over the window. Tempo only returns results when the
-        search end is ~wall-clock now (a past end returns nothing), and one such
-        search already spreads evenly across the whole window, so a single query at
-        the cap suffices to sample both baseline and fault."""
+        """Enumerate trace ids over the window, DETERMINISTICALLY. Tempo only returns
+        results when the search end is ~wall-clock now (a past end returns nothing), and
+        its return order is not stable, so for reproducibility we over-fetch a superset,
+        sort the ids, and keep the first trace_cap. Trace ids are uncorrelated with time,
+        so the lexicographic prefix samples the whole window evenly. Same scenario + same
+        now_s yields the same span set; model sampling still varies, the telemetry does not."""
         now_s = self._now_s or int(time.time())
         d = self._get(f"{self._tempo}/api/search",
                       {"q": _ENUM_MATCHER, "start": self._start_s - _SEARCH_WIDEN_S,
-                       "end": now_s, "limit": self._trace_cap})
-        return [t["traceID"] for t in d.get("traces", []) if t.get("traceID")]
+                       "end": now_s, "limit": max(self._trace_cap * 4, 6000)})
+        ids = sorted(t["traceID"] for t in d.get("traces", []) if t.get("traceID"))
+        return ids[: self._trace_cap]
 
     def _parse_trace(self, doc: dict) -> list[TraceRow]:
         out: list[TraceRow] = []

@@ -122,18 +122,31 @@ def main(argv: list[str] | None = None) -> int:
     store = LgtmStore(
         prometheus_url=prom, loki_url=loki, tempo_url=tempo,
         window_start_ms=window["window_start_ms"], window_end_ms=window["window_end_ms"],
-        onset_second=window["onset_second"],
+        onset_second=window["onset_second"], now_s=int(time.time()),   # Fix 4: fixed per run
     )
+    # Fix 6: eval-side sanity check (beside the agent, never in its path): the metric job
+    # labels must overlap the truth's accepted services, else metric_series is silently empty.
+    truth_path = scenario_dir / "eval_only" / "truth.json"
+    if truth_path.exists():
+        truth = json.loads(truth_path.read_text())
+        accepted = set(truth.get("accepted_services") or [truth.get("root_cause", {}).get("service")])
+        if not (set(store.list_services()) & accepted):
+            print(f"WARNING: no store service matches truth {accepted}; metric_series will be empty",
+                  file=sys.stderr)
+
+    case_id = args.scenario or scenario_dir.name
     print(f"model={preset.model}  scenario={scenario_dir.name}  backend={args.backend}", file=sys.stderr)
-    result = run_rca(store, incident=incident, out_dir=args.out, model=args.model, onset=window['onset_second'],
-                     run_id=args.scenario or scenario_dir.name, backend=args.backend,
+    result = run_rca(store, incident=incident, out_dir=args.out, model=args.model,
+                     onset=window['onset_second'], run_id=case_id, backend=args.backend,
                      worker_concurrency=args.concurrency)
 
     print(json.dumps({
         "root_cause_service": result.root_cause_service,
+        "ranked_services": result.ranked_services,
         "synthesis": result.synthesis,
         "n_verdicts": len(result.verdicts),
         "graph_edges": len(result.graph.get("edges", [])),
+        "graph_source": result.graph.get("source"),
         "trace": result.trace_path,
         "usage": result.usage,
     }, indent=2))

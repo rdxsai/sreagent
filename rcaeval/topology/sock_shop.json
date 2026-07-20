@@ -1,0 +1,21 @@
+{
+  "_derived_from": "hand-written from the published Sock Shop microservices architecture (SS ships no traces to derive from); service names match the RE2-SS metric job labels",
+  "edges": [
+    ["front-end", "catalogue"],
+    ["front-end", "carts"],
+    ["front-end", "orders"],
+    ["front-end", "user"],
+    ["front-end", "payment"],
+    ["orders", "carts"],
+    ["orders", "payment"],
+    ["orders", "shipping"],
+    ["orders", "user"],
+    ["orders", "catalogue"],
+    ["carts", "carts-db"],
+    ["catalogue", "catalogue-db"],
+    ["orders", "orders-db"],
+    ["user", "user-db"],
+    ["shipping", "rabbitmq"],
+    ["rabbitmq", "queue-master"]
+  ]
+}
