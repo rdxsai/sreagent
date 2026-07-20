@@ -140,16 +140,26 @@ def main(argv: list[str] | None = None) -> int:
                      onset=window['onset_second'], run_id=case_id, backend=args.backend,
                      worker_concurrency=args.concurrency)
 
-    print(json.dumps({
+    # Persist the handoff artifact the action half consumes (it reads this file, never live
+    # objects, keeping the two paths import-isolated).
+    handoff = {
+        "run_id": case_id,
+        "symptom": incident.split("\n", 1)[0].replace("Symptom: ", ""),
         "root_cause_service": result.root_cause_service,
         "ranked_services": result.ranked_services,
         "synthesis": result.synthesis,
-        "n_verdicts": len(result.verdicts),
-        "graph_edges": len(result.graph.get("edges", [])),
+        "verdicts": result.verdicts,
         "graph_source": result.graph.get("source"),
+        "graph_edges": len(result.graph.get("edges", [])),
         "trace": result.trace_path,
         "usage": result.usage,
-    }, indent=2))
+    }
+    result_path = Path(args.out) / f"{case_id}.result.json"
+    result_path.write_text(json.dumps(handoff, indent=2))
+    print(json.dumps({**{k: handoff[k] for k in
+                         ("root_cause_service", "ranked_services", "synthesis", "graph_source")},
+                      "n_verdicts": len(result.verdicts), "result_json": str(result_path),
+                      "trace": result.trace_path, "usage": result.usage}, indent=2))
     return 0
 
 

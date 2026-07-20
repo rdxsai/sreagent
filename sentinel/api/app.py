@@ -65,6 +65,16 @@ def create_app(on_alert: OnAlert = default_on_alert) -> FastAPI:
 
     app.include_router(demo_router)
 
+    # Action half (gated remediation). Consumes the journal, never the eval path's live
+    # objects. Mounted here as the server surface for Slack + web approvals.
+    from pathlib import Path as _Path
+
+    from sentinel.actions.api import make_action_router
+    from sentinel.actions.journal import ActionJournal
+
+    _action_journal = ActionJournal(_Path("runs/actions/server.jsonl"))
+    app.include_router(make_action_router(_action_journal))
+
     @app.post("/alert")
     async def alert(request: Request) -> dict[str, Any]:
         payload = await request.json()
