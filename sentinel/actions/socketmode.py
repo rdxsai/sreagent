@@ -77,19 +77,28 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Slack Socket Mode approval listener.")
     ap.add_argument("--journal", default="runs/actions/server.jsonl")
     ap.add_argument("--max-events", type=int, default=None, help="stop after N interactions (demo)")
+    ap.add_argument("--executor", default="dry_run", choices=["dry_run", "live"],
+                    help="live runs real remediation on the OTel demo (Option B)")
+    ap.add_argument("--health-query", default=None, help="PromQL for recovery confirmation (live)")
     args = ap.parse_args(argv)
 
     app_token = os.environ.get("SLACK_APP_TOKEN")
     if not app_token or not app_token.startswith("xapp-"):
         raise SystemExit("SLACK_APP_TOKEN (xapp-...) required for Socket Mode")
     journal = ActionJournal(Path(args.journal))
+    if args.executor == "live":
+        from sentinel.actions.live_executor import make_live_executor
+        executor = make_live_executor(health_query=args.health_query)
+    else:
+        executor = DryRunExecutor()
 
     def _log(aid, decision, approver, res):
         status = res.status if res else "denied"
-        print(f"[socket] {decision} by {approver} -> {aid[:8]} : {status}", flush=True)
+        extra = f" before={res.detail}" if res and res.detail else ""
+        print(f"[socket] {decision} by {approver} -> {aid[:8]} : {status}{extra}", flush=True)
 
-    print("[socket] connected; waiting for Approve/Deny clicks ...", flush=True)
-    asyncio.run(_run(journal, DryRunExecutor(), app_token, on_event=_log, max_events=args.max_events))
+    print(f"[socket] connected ({executor.backend}); waiting for Approve/Deny clicks ...", flush=True)
+    asyncio.run(_run(journal, executor, app_token, on_event=_log, max_events=args.max_events))
     return 0
 
 
