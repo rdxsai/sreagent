@@ -11,26 +11,19 @@ import threading
 
 from fastapi import APIRouter, Request
 
+from sentinel.actions.dispatch import handle_decision
 from sentinel.actions.executor import DryRunExecutor
-from sentinel.actions.gate import execute_approved
 from sentinel.actions.journal import ActionJournal
-from sentinel.actions.slack import post_thread
 from sentinel.actions.verify import verify_slack
 
 
 def make_action_router(journal: ActionJournal, *, executor=None, slack_ts_by_action=None) -> APIRouter:
     router = APIRouter()
     executor = executor or DryRunExecutor()
-    slack_ts = slack_ts_by_action if slack_ts_by_action is not None else {}
 
-    def _run_execution(action_id: str) -> None:
-        st = journal.state_of(action_id)
-        if st is None:
-            return
-        res = execute_approved(journal, st.action, executor)
-        ts = slack_ts.get(action_id)
-        if ts:
-            post_thread(ts, f"Execution: {res.status} — `{executor.render(st.action)}`")
+    def _run_execution(action_id: str, decision: str = "approve", approver: str = "web",
+                       surface: str = "web") -> None:
+        handle_decision(journal, action_id, decision, approver, surface, executor=executor)
 
     @router.post("/slack/interact")
     async def slack_interact(request: Request) -> dict:
@@ -49,11 +42,8 @@ def make_action_router(journal: ActionJournal, *, executor=None, slack_ts_by_act
         approver = (payload.get("user") or {}).get("username", "slack-user")
         if not action_id:
             return {"ok": False, "error": "no action id"}
-        if decision == "approve":
-            journal.approved(action_id, approver, "slack")
-            threading.Thread(target=_run_execution, args=(action_id,), daemon=True).start()
-        elif decision == "deny":
-            journal.denied(action_id, approver)
+        threading.Thread(target=_run_execution, args=(action_id, decision, approver, "slack"),
+                         daemon=True).start()
         return {"ok": True}   # ack within 3s; execution runs in background
 
     # -- web fallback (same journal, same gate) --------------------------------
@@ -74,15 +64,15 @@ def make_action_router(journal: ActionJournal, *, executor=None, slack_ts_by_act
     async def web_approve(action_id: str, request: Request) -> dict:
         if not _web_authed(request):
             return {"ok": False, "error": "unauthorized"}
-        journal.approved(action_id, "web-user", "web")
-        threading.Thread(target=_run_execution, args=(action_id,), daemon=True).start()
+        threading.Thread(target=_run_execution, args=(action_id, "approve", "web-user", "web"),
+                         daemon=True).start()
         return {"ok": True}
 
     @router.post("/actions/{action_id}/deny")
     async def web_deny(action_id: str, request: Request) -> dict:
         if not _web_authed(request):
             return {"ok": False, "error": "unauthorized"}
-        journal.denied(action_id, "web-user")
+        _run_execution(action_id, "deny", "web-user", "web")
         return {"ok": True}
 
     return router
