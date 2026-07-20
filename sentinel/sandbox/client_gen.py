@@ -29,10 +29,15 @@ _SCALARS = {str: "str", int: "int", float: "float", bool: "bool"}
 
 
 def code_tool_specs() -> list[ToolSpec]:
+    # Only read-effect tools may enter the sandbox SDK (and, via oss/catalog.py, the manager
+    # catalog). Side-effecting notify/mutate action tools are structurally excluded here so the
+    # sandbox stays network-none and read-only and the investigation path never sees an action.
     return [
         spec
         for spec in REGISTRY.specs()
-        if spec.name not in CODE_TERMINALS and not spec.name.startswith("investigate_")
+        if spec.effect == "read"
+        and spec.name not in CODE_TERMINALS
+        and not spec.name.startswith("investigate_")
     ]
 
 

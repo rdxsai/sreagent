@@ -28,6 +28,9 @@ class ToolSpec:
     input_model: type[BaseModel]
     output_model: type[BaseModel]
     fn: Callable[..., BaseModel]
+    # "read" tools may enter the sandbox SDK and the manager catalog; "notify"/"mutate"
+    # are side-effecting action tools that must never reach the read-only investigation path.
+    effect: str = "read"
 
 
 def _clean_doc(doc: str | None) -> str:
@@ -50,7 +53,12 @@ class ToolRegistry:
     def __init__(self) -> None:
         self._specs: dict[str, ToolSpec] = {}
 
-    def tool(self, namespace: str) -> Callable[[Callable[..., BaseModel]], Callable[..., BaseModel]]:
+    def tool(
+        self, namespace: str, *, effect: str = "read"
+    ) -> Callable[[Callable[..., BaseModel]], Callable[..., BaseModel]]:
+        if effect not in ("read", "notify", "mutate"):
+            raise ValueError(f"effect must be read|notify|mutate, got {effect!r}")
+
         def decorator(fn: Callable[..., BaseModel]) -> Callable[..., BaseModel]:
             hints = get_type_hints(fn)
             if "params" not in hints or "return" not in hints:
@@ -64,6 +72,7 @@ class ToolRegistry:
                 input_model=hints["params"],
                 output_model=hints["return"],
                 fn=fn,
+                effect=effect,
             )
             self.register(spec)
             return fn
