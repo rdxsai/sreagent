@@ -41,8 +41,8 @@ class ActionJournal:
 
     # convenience emitters -----------------------------------------------------
 
-    def proposed(self, action: SuggestedAction) -> None:
-        self.append("proposed", action.id, action=action.model_dump())
+    def proposed(self, action: SuggestedAction, expires_at: float | None = None) -> None:
+        self.append("proposed", action.id, action=action.model_dump(), expires_at=expires_at)
 
     def posted(self, action_id: str, surface: str, ref: str) -> None:
         self.append("posted", action_id, surface=surface, ref=ref)
@@ -81,7 +81,7 @@ class ActionJournal:
             aid, kind = e["action_id"], e["kind"]
             if kind == "proposed":
                 states[aid] = ApprovalState(action=SuggestedAction.model_validate(e["action"]),
-                                            status="proposed")
+                                            status="proposed", expires_at=e.get("expires_at"))
                 continue
             st = states.get(aid)
             if st is None:
@@ -93,7 +93,7 @@ class ActionJournal:
                 st.status, st.approver, st.surface = "approved", e.get("approver"), e.get("surface")
             elif kind == "denied" and st.status in ("proposed", "posted"):
                 st.status, st.approver = "denied", e.get("approver")
-            elif kind == "expired" and st.status in ("proposed", "posted"):
+            elif kind == "expired" and st.status in ("proposed", "posted", "approved"):
                 st.status = "expired"
             elif kind == "execute_started" and st.status == "approved":
                 st.status = "executing"
