@@ -44,32 +44,39 @@ async def _run(journal: ActionJournal, executor: Executor, app_token: str,
                *, on_event=None, max_events: int | None = None) -> None:
     seen = 0
     while True:
-        url = _open_socket_url(app_token)
-        async with websockets.connect(url, max_size=2**20) as ws:
-            async for raw in ws:
-                msg = json.loads(raw)
-                mtype = msg.get("type")
-                if mtype in ("hello", "disconnect"):
-                    if mtype == "disconnect":
-                        break  # reconnect via the outer loop
-                    continue
-                # ack first (Slack requires it within ~3s)
-                if msg.get("envelope_id"):
-                    await ws.send(json.dumps({"envelope_id": msg["envelope_id"]}))
-                if mtype != "interactive":
-                    continue
-                payload = msg.get("payload", {})
-                if payload.get("type") != "block_actions":
-                    continue
-                action_id, decision, approver = _decision_from_payload(payload)
-                if not action_id:
-                    continue
-                res = handle_decision(journal, action_id, decision, approver, "slack", executor=executor)
-                if on_event is not None:
-                    on_event(action_id, decision, approver, res)
-                seen += 1
-                if max_events is not None and seen >= max_events:
-                    return
+        try:
+            url = _open_socket_url(app_token)
+            async with websockets.connect(url, max_size=2**20) as ws:
+                async for raw in ws:
+                    msg = json.loads(raw)
+                    mtype = msg.get("type")
+                    if mtype in ("hello", "disconnect"):
+                        if mtype == "disconnect":
+                            break  # reconnect via the outer loop
+                        continue
+                    # ack first (Slack requires it within ~3s)
+                    if msg.get("envelope_id"):
+                        await ws.send(json.dumps({"envelope_id": msg["envelope_id"]}))
+                    if mtype != "interactive":
+                        continue
+                    payload = msg.get("payload", {})
+                    if payload.get("type") != "block_actions":
+                        continue
+                    action_id, decision, approver = _decision_from_payload(payload)
+                    if not action_id:
+                        continue
+                    res = handle_decision(journal, action_id, decision, approver, "slack", executor=executor)
+                    if on_event is not None:
+                        on_event(action_id, decision, approver, res)
+                    seen += 1
+                    if max_events is not None and seen >= max_events:
+                        return
+        except (websockets.exceptions.ConnectionClosed, ConnectionError, OSError) as exc:
+            # Slack recycles Socket Mode connections abruptly (TCP reset, no close
+            # frame); reconnect rather than die. The journal's single-use gate makes
+            # any redelivered click safe.
+            print(f"[socket] connection dropped ({type(exc).__name__}); reconnecting ...", flush=True)
+            await asyncio.sleep(2)
 
 
 def main(argv: list[str] | None = None) -> int:
