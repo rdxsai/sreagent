@@ -51,6 +51,9 @@ class ModelPreset:
             api_key=self.api_key(),
             default_headers={"X-Title": "sentinel-sre"},
             max_retries=0,   # the loop owns retry/backoff + rate limiting
+            # cap each request so a slow provider fails-fast into the loop's retry
+            # rather than blocking on the SDK's 600s default (seen hanging on live NR runs)
+            timeout=float(os.environ.get("SENTINEL_LLM_TIMEOUT_S", "90")),
         )
 
     def body(self, *, max_tokens: int | None = None, effort: str | None = None) -> dict:

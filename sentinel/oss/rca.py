@@ -45,6 +45,7 @@ def run_rca(
     backend: str = "docker",
     worker_concurrency: int = 3,
     worker_iters: int = 6,
+    prefer_trace: bool = False,
 ) -> RcaResult:
     client, preset = client_for(model)
     run_id = run_id or f"rca-{int(time.time())}"
@@ -58,7 +59,8 @@ def run_rca(
         usage["output"] += u.get("output", 0)
 
     # Fix 1: topology is a maintained INPUT (static/trace/causal chain), not a trace worker.
-    graph = resolve_topology(store, system=system, onset=onset)
+    # Live systems prefer the trace source so the graph carries the live service vocabulary.
+    graph = resolve_topology(store, system=system, onset=onset, prefer_trace=prefer_trace)
     trace.manager(root, step="topology", source=graph.source, edges=len(graph.edges),
                   ranked=graph.ranked_services[:8], traces_present=graph.traces_present)
     traces_available = graph.traces_present  # spans exist -> workers may use trace tools
