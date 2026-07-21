@@ -40,10 +40,12 @@ def test_system_of():
 
 
 def test_onset_step_flags_stepped_ignores_flat():
+    # the robust detector needs >= 4 baseline points to estimate noise (MAD)
+    pre = [(0, 10.0), (200, 10.0), (400, 10.0), (600, 10.0)]
     store = FakeStore({
-        ("a", "latency_p95_ms"): [(0, 10.0), (600, 10.0), (800, 100.0), (1000, 100.0)],  # stepped
-        ("b", "latency_p95_ms"): [(0, 10.0), (600, 10.0), (800, 10.0), (1000, 10.0)],     # flat
-        ("a", "cpu_utilization"): [(0, 0.3), (800, 0.3)],                                  # flat
+        ("a", "latency_p95_ms"): pre + [(800, 100.0), (1000, 100.0)],  # stepped
+        ("b", "latency_p95_ms"): pre + [(800, 10.0), (1000, 10.0)],    # flat
+        ("a", "cpu_utilization"): [(0, 0.3), (200, 0.3), (400, 0.3), (600, 0.3), (800, 0.3)],  # flat
     })
     assert topology.onset_signatures(store, "a", onset=720) == {"resource": False, "latency": True, "error": False}
     assert topology.onset_signatures(store, "b", onset=720) == {"resource": False, "latency": False, "error": False}
@@ -71,12 +73,14 @@ def test_rank_origin_above_victim_metric_only():
     # a -> b -> c ; the delay is on b, so b and its caller a step, c stays flat.
     # b (most-connected anomalous, non-entry) should outrank the entry root a.
     edges = [["a", "b"], ["b", "c"]]
+    pre = [(0, 10.0), (200, 10.0), (400, 10.0), (600, 10.0)]
     store = FakeStore({
-        ("a", "latency_p95_ms"): [(0, 10.0), (800, 120.0)],
-        ("b", "latency_p95_ms"): [(0, 10.0), (800, 200.0)],
-        ("c", "latency_p95_ms"): [(0, 10.0), (800, 10.0)],
+        ("a", "latency_p95_ms"): pre + [(800, 120.0), (1000, 120.0)],
+        ("b", "latency_p95_ms"): pre + [(800, 200.0), (1000, 200.0)],
+        ("c", "latency_p95_ms"): pre + [(800, 10.0), (1000, 10.0)],
     })
-    ranked = topology._rank(edges, store, onset=720)
+    effects = {s: topology.onset_effects(store, s, 720) for s in ("a", "b", "c")}
+    ranked = topology._rank(edges, effects)
     assert ranked[0] == "b"                 # origin (non-entry, connected) first
     assert ranked.index("b") < ranked.index("a")   # above the entry-root victim
     assert ranked.index("c") == len(ranked) - 1     # flat service last
@@ -84,7 +88,8 @@ def test_rank_origin_above_victim_metric_only():
 
 def test_resolve_topology_metric_only_is_static_and_ranked():
     # online_boutique static graph + a stepped productcatalog metric, no spans.
-    store = FakeStore({("productcatalogservice", "latency_p95_ms"): [(0, 5.0), (800, 400.0)]}, spans=[])
+    store = FakeStore({("productcatalogservice", "latency_p95_ms"):
+                       [(0, 5.0), (200, 5.0), (400, 5.0), (600, 5.0), (800, 400.0), (1000, 400.0)]}, spans=[])
     g = topology.resolve_topology(store, system="online_boutique", onset=720)
     assert g.source == "static" and g.edges and g.ranked_services
     assert g.ranked_services[0] == "productcatalogservice"

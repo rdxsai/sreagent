@@ -249,6 +249,14 @@ class CompareBaselineOutput(BaseModel):
     delta: float
     pct_change: float | None
     shifted: bool
+    effect_z: float = Field(
+        default=0.0,
+        description=(
+            "robust onset effect size (level OR slope step); >= 3 is significant even "
+            "when the mean pct_change looks small, e.g. a sustained ramp on a "
+            "cumulative/integrating gauge"
+        ),
+    )
 
 
 class DetectShiftInput(BaseModel):
@@ -576,6 +584,10 @@ class MetricMover(BaseModel):
     pre_mean: float
     post_mean: float
     delta: float
+    effect_z: float = Field(
+        default=0.0,
+        description="robust onset effect size (level or slope step); >= 3 is significant",
+    )
 
 
 class TopMoversOutput(BaseModel):
@@ -593,6 +605,13 @@ class ResourceShift(BaseModel):
     unit: str
     pre_mean: float
     post_mean: float
+    effect_z: float = Field(
+        default=0.0,
+        description=(
+            "robust onset effect size; a sustained slope change on an integrating "
+            "gauge fires here even when the mean rise looks small"
+        ),
+    )
 
 
 class SaturationOutput(BaseModel):

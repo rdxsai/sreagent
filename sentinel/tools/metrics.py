@@ -38,6 +38,7 @@ from sentinel.tools.models import (
     TopMoversOutput,
 )
 from sentinel.registry import tool
+from sentinel.tools.stats import Z_MIN, step_z
 from sentinel.tools.store import TelemetryStore
 
 
@@ -152,30 +153,36 @@ def metrics_series(params: MetricSeriesInput, store: TelemetryStore) -> Series:
 
 @tool(namespace="metrics")
 def metrics_compare_baseline(params: CompareBaselineInput, store: TelemetryStore) -> CompareBaselineOutput:
-    """Compare a metric's mean in a baseline window against a later window.
+    """Compare a metric between a baseline window and a later window.
 
     Use it to quantify a post-onset shift: a pre-onset baseline window versus a
-    post-onset compare window. `shifted` is true when the change exceeds ten
-    percent of the baseline (with a floor, so a rise from a zero baseline counts).
+    post-onset compare window. `shifted` is true when the mean change exceeds ten
+    percent of the baseline OR the robust effect size fires (`effect_z` >= 3).
+    Trust `effect_z` over the raw pct: it also detects a SUSTAINED SLOPE change,
+    the signature of a fault on a cumulative/integrating gauge (e.g. a cpu
+    counter at level ~18 ramping), which a small mean pct_change hides.
     """
     _unit_for(store, params.service, params.metric)
     rows = store.metric_series(params.service, params.metric)
 
-    def mean_in(lo: int, hi: int) -> float:
-        vals = [r.value for r in rows if lo <= r.time <= hi]
-        return fmean(vals) if vals else 0.0
+    def vals_in(lo: int, hi: int) -> list[float]:
+        return [r.value for r in rows if lo <= r.time <= hi]
 
-    baseline = mean_in(params.baseline_start, params.baseline_end)
-    compare = mean_in(params.compare_start, params.compare_end)
+    base_vals = vals_in(params.baseline_start, params.baseline_end)
+    comp_vals = vals_in(params.compare_start, params.compare_end)
+    baseline = fmean(base_vals) if base_vals else 0.0
+    compare = fmean(comp_vals) if comp_vals else 0.0
     delta = compare - baseline
     pct = (delta / baseline) if baseline else None
-    shifted = abs(delta) > (0.1 * abs(baseline) + 1e-6)
+    effect = step_z(base_vals, comp_vals, params.metric)
+    shifted = abs(delta) > (0.1 * abs(baseline) + 1e-6) or effect >= Z_MIN
     return CompareBaselineOutput(
         baseline_mean=baseline,
         compare_mean=compare,
         delta=delta,
         pct_change=pct,
         shifted=shifted,
+        effect_z=effect,
     )
 
 
@@ -215,18 +222,25 @@ def metrics_detect_shift(params: DetectShiftInput, store: TelemetryStore) -> Det
 
 @tool(namespace="metrics")
 def metrics_top_movers(params: TopMoversInput, store: TelemetryStore) -> TopMoversOutput:
-    """Rank services by how much one metric changed across onset.
+    """Rank services by how strongly one metric stepped across onset.
 
-    For the chosen metric (request_error_rate, latency_p95_ms, or cpu_cores),
-    returns every service's pre vs post mean and the delta, largest increase first.
+    For the chosen metric, returns every service's pre vs post mean, the delta,
+    and `effect_z` (robust level-or-slope step size), strongest effect first.
     One call surfaces which service moved most, the likely fault site, instead of
-    querying each service's series individually.
+    querying each service's series individually. Rank by effect_z, not raw delta:
+    a sustained ramp on a cumulative gauge has a small delta but a large effect.
     """
     movers = []
     for service in _services_with(store, params.metric):
-        pre, post = _pre_post(store, service, params.metric, params.onset_second)
-        movers.append(MetricMover(service=service, pre_mean=pre, post_mean=post, delta=post - pre))
-    movers.sort(key=lambda m: m.delta, reverse=True)
+        rows = store.metric_series(service, params.metric)
+        pre_vals = [r.value for r in rows if r.time < params.onset_second]
+        post_vals = [r.value for r in rows if r.time >= params.onset_second]
+        pre = fmean(pre_vals) if pre_vals else 0.0
+        post = fmean(post_vals) if post_vals else 0.0
+        movers.append(MetricMover(service=service, pre_mean=pre, post_mean=post,
+                                  delta=post - pre,
+                                  effect_z=step_z(pre_vals, post_vals, params.metric)))
+    movers.sort(key=lambda m: (m.effect_z, m.delta), reverse=True)
     return TopMoversOutput(metric=params.metric, movers=movers[: params.limit])
 
 
@@ -235,11 +249,13 @@ def metrics_resource_saturation(params: SaturationInput, store: TelemetryStore) 
     """Find services whose resource metrics (cpu, memory, ...) rose after onset.
 
     Sweeps every resource series the backend advertises (cpu_cores or
-    cpu_utilization, memory_mb, ...) and flags significant pre-to-post rises.
-    Catches saturation and leak faults whose request latency or error rate may
-    stay normal, so traces and RED tools would miss them. A steadily climbing or
+    cpu_utilization, memory_mb, ...) and flags rises by robust effect size
+    (`effect_z`, level OR sustained-slope step), strongest first. Catches
+    saturation and leak faults whose request latency or error rate may stay
+    normal, so traces and RED tools would miss them. A steadily climbing or
     sawtoothing memory_mb is a leak/crashloop signature even when the service
-    answers requests normally between restarts.
+    answers requests normally between restarts; on cumulative gauges the fault
+    is a slope change, so trust effect_z over the raw mean rise.
     """
     resources = resource_metrics(store)
     if not resources:
@@ -247,12 +263,20 @@ def metrics_resource_saturation(params: SaturationInput, store: TelemetryStore) 
     risers = []
     for metric, unit in resources:
         for service in _services_with(store, metric):
-            pre, post = _pre_post(store, service, metric, params.onset_second)
-            if significant_shift(metric, pre, post):
-                risers.append(ResourceShift(service=service, metric=metric, unit=unit, pre_mean=pre, post_mean=post))
-    risers.sort(key=lambda r: (r.post_mean / r.pre_mean) if r.pre_mean > 0 else float("inf"), reverse=True)
+            rows = store.metric_series(service, metric)
+            pre_vals = [r.value for r in rows if r.time < params.onset_second]
+            post_vals = [r.value for r in rows if r.time >= params.onset_second]
+            pre = fmean(pre_vals) if pre_vals else 0.0
+            post = fmean(post_vals) if post_vals else 0.0
+            effect = step_z(pre_vals, post_vals, metric)
+            if effect >= Z_MIN or significant_shift(metric, pre, post):
+                risers.append(ResourceShift(service=service, metric=metric, unit=unit,
+                                            pre_mean=pre, post_mean=post, effect_z=effect))
+    risers.sort(key=lambda r: r.effect_z, reverse=True)
     note = "resource metrics checked: " + ", ".join(m for m, _u in resources)
-    if not risers:
+    if risers:
+        note += "; ranked by effect_z (robust level-or-slope step; a sustained ramp on an integrating gauge fires even when the mean rise is small)"
+    else:
         note += "; no significant post-onset rise found"
     return SaturationOutput(risers=risers, note=note)
 
