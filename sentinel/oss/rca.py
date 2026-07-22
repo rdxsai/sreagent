@@ -14,12 +14,37 @@ from pathlib import Path
 from typing import Any
 
 from sentinel.oss.manager import plan, synthesize
-from sentinel.oss.schemas import WorkerVerdict
+from sentinel.oss.schemas import Hypothesis, WorkerVerdict
 from sentinel.oss.topology import resolve_topology, system_of
 from sentinel.oss.trace import TraceContext, TraceLogger
 from sentinel.oss.worker import run_worker
 from sentinel.providers import client_for
+from sentinel.tools.stats import Z_MIN
 from sentinel.tools.store import TelemetryStore
+
+# family -> human fault label (shared with run_live._fast_localize) and the metric a worker
+# should read to confirm that family, so a corrected directive names a concrete series.
+_SIG_FAULT = {"resource": "resource saturation", "latency": "latency/slowdown", "error": "errors"}
+_SIG_METRIC = {"resource": "cpu_utilization / memory_mb", "latency": "latency_p95_ms",
+               "error": "request_error_rate"}
+
+
+_CONFIRM_TOOLS = ["metrics_summary_all", "metrics_compare_baseline", "metrics_top_movers",
+                  "metrics_resource_saturation", "metrics_detect_shift"]
+
+
+def _dominant_family(effects: dict[str, float] | None) -> str | None:
+    """The family that deterministically stepped for a service (max z >= Z_MIN), else None."""
+    if not effects:
+        return None
+    fam, z = max(effects.items(), key=lambda kv: kv[1])
+    return fam if z >= Z_MIN else None
+
+
+def _confirm_directive(service: str, family: str) -> str:
+    return (f"The anomaly overlay shows {service}'s own {family} signal stepped at onset. "
+            f"Confirm it directly: compare {service}'s {_SIG_METRIC[family]} pre vs post onset, "
+            f"and set observed_signatures/supported from what actually stepped.")
 
 
 @dataclass
@@ -72,8 +97,35 @@ def run_rca(
     plan_obj = plan(client, preset, incident=incident, dep_graph=dep_graph,
                     traces_available=traces_available, trace=trace, ctx=root)
 
+    # Guarantee the deterministically anomalous, top-ranked origins are actually investigated. The
+    # manager never sees telemetry and sometimes omits the #1 anomalous service entirely; inject a
+    # hypothesis for any it missed, signed by the family that stepped, so a worker confirms the origin
+    # with its own evidence rather than the pick resting on the overlay alone. Anomalous origins can't
+    # be refuted (below), so this never changes the localization -- only whether it is evidence-backed.
+    planned = {h.candidate_service for h in plan_obj.hypotheses}
+    for svc in graph.ranked_services[:3]:
+        dom = _dominant_family(graph.effects.get(svc))
+        if dom and svc in graph.anomalous and svc not in planned:
+            plan_obj.hypotheses.append(Hypothesis(
+                candidate_service=svc, signature=dom, tool_subset=list(_CONFIRM_TOOLS),
+                investigation_directive=_confirm_directive(svc, dom)))
+            trace.manager(root, step="candidate_injected", candidate=svc, signature=dom,
+                          effects={k: round(v, 1) for k, v in graph.effects[svc].items()})
+
     def _one(idx_h: tuple[int, Any]) -> Any:
         i, h = idx_h
+        # The manager guesses each candidate's signature from the graph alone (it never sees
+        # telemetry). Correct it to the family that DETERMINISTICALLY stepped for this candidate
+        # (the anomaly overlay is authoritative), so the worker investigates the metric that
+        # actually moved instead of chasing a mis-guessed family. Only fires for a deterministically
+        # anomalous candidate, so rule-out hypotheses on quiet services keep the manager's framing.
+        dom = _dominant_family(graph.effects.get(h.candidate_service))
+        if dom and dom != h.signature:
+            trace.manager(root, step="signature_correction", candidate=h.candidate_service,
+                          manager_signature=h.signature, overlay_signature=dom,
+                          effects={k: round(v, 1) for k, v in graph.effects[h.candidate_service].items()})
+            h.signature = dom
+            h.investigation_directive = _confirm_directive(h.candidate_service, dom)
         wctx = root.child(f"worker:{i}:{h.candidate_service}")
         edge = f" on edge {h.edge[0]}->{h.edge[1]}" if h.edge else ""
         hyp_text = f"[{h.signature}] Candidate origin: {h.candidate_service}{edge}. {h.investigation_directive}"
@@ -87,6 +139,18 @@ def run_rca(
         # decided deterministically over the graph rank below.
         if run.verdict is not None:
             run.verdict["candidate_service"] = h.candidate_service
+            # For a deterministically anomalous candidate, the overlay's onset_effects ARE the
+            # evidence (the same metric step the worker's own tools compute -- observed live as an
+            # effect_z=27.7 cpu shift the LLM then labelled "unsupported"). Trust the overlay over the
+            # model's verdict judgment: reconcile observed_signatures/supported/signature to what
+            # deterministically stepped. Localization is unchanged (anomalous origins are refutation
+            # -proof either way); this only makes the verdict and fault_type evidence-backed.
+            eff = graph.effects.get(h.candidate_service, {})
+            dom = _dominant_family(eff)
+            if dom:
+                run.verdict["observed_signatures"] = {fam: z >= Z_MIN for fam, z in eff.items()}
+                run.verdict["supported"] = True
+                run.verdict["signature"] = dom
             if run.verdict.get("supported"):
                 run.verdict["root_cause_service"] = h.candidate_service
         return run
@@ -111,12 +175,17 @@ def run_rca(
     ranked_det = [s for s in graph.ranked_services if s not in refuted] or graph.ranked_services
     root_cause = ranked_det[0] if ranked_det else None
 
-    # The LLM synthesis now only narrates (fault_type + justification); it cannot change the pick.
-    fault_type = justification = None
+    # The LLM synthesis now only narrates (justification); it cannot change the pick. fault_type is
+    # taken deterministically from the chosen origin's own stepped family (the overlay is authoritative
+    # and never null when the origin is anomalous); the LLM synthesis is a fallback for the rare
+    # non-anomalous pick.
+    fault_type = _SIG_FAULT.get(_dominant_family(graph.effects.get(root_cause)))
+    justification = None
     if verdicts:
         synth = synthesize(client, preset, incident=incident, verdicts=verdicts, dep_graph=dep_graph,
                            trace=trace, ctx=root)
-        fault_type, justification = synth.fault_type, synth.justification
+        justification = synth.justification
+        fault_type = fault_type or synth.fault_type
     trace.manager(root, step="final_answer", root_cause_service=root_cause,
                   ranked=ranked_det[:5], refuted=sorted(x for x in refuted if x))
     return RcaResult(
