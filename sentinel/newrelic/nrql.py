@@ -83,5 +83,11 @@ def list_services(start_ms: int, end_ms: int) -> str:
     return f"SELECT uniques(service.name, 1000) FROM Span SINCE {start_ms} UNTIL {end_ms}"
 
 
+def list_metric_containers(start_ms: int, end_ms: int) -> str:
+    # Metric-first fallback: span-poor systems (e.g. Sock Shop) surface their services
+    # only as docker_stats container.name, so the service universe must include these.
+    return f"SELECT uniques(container.name, 1000) FROM Metric SINCE {start_ms} UNTIL {end_ms}"
+
+
 def changes(start_ms: int, end_ms: int) -> str:
     return f"SELECT {CHANGE_COLUMNS} FROM SentinelChange SINCE {start_ms} UNTIL {end_ms} LIMIT MAX"

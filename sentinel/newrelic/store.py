@@ -95,8 +95,20 @@ class NewRelicStore:
                 names.extend(str(v) for v in value)
         return sorted(set(names))
 
+    def list_metric_containers(self) -> list[str]:
+        results = self._client.nrql(nrql.list_metric_containers(self._start_ms, self._end_ms))
+        names: list[str] = []
+        for entry in results:
+            value = entry.get("uniques.container.name")
+            if isinstance(value, list):
+                names.extend(str(v) for v in value)
+        return sorted(set(names))
+
     def list_metric_keys(self) -> list[tuple[str, str, str]]:
-        services = self.list_services()
+        # Union span-derived service.name with metric-derived container.name: span-poor
+        # systems have services visible only in docker_stats metrics, and gating the metric
+        # universe on span discovery starved them (all onset effects read zero).
+        services = set(self.list_services()) | set(self.list_metric_containers())
         return sorted(
             (service, metric, unit)
             for service in services
