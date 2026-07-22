@@ -1,0 +1,126 @@
+# Sock Shop, live, on Apple Silicon. App tier is amd64 (Rosetta-emulated); the
+# DB/queue tier uses arm64-native images to cut emulation load. container_name is
+# pinned to the static-topology vocabulary (rcaeval/topology/sock_shop.json) so
+# the agent's docker_stats metrics (container.name) reconcile with the graph.
+# Hardening intentionally omitted: this is a throwaway telemetry lab.
+name: sockshop
+
+x-zipkin: &zipkin http://otel-collector:9411/api/v1/spans
+x-jopts: &jopts -Xms64m -Xmx160m -XX:+UseG1GC -Djava.security.egd=file:/dev/urandom -Dspring.zipkin.enabled=true -Dspring.zipkin.baseUrl=http://otel-collector:9411/
+
+services:
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.151.0
+    container_name: sockshop-otelcol
+    # docker_stats reads the root-owned Docker Desktop socket; run as root so the
+    # metrics-pipeline receiver can start (else its failure kills the whole collector).
+    user: "0:0"
+    command: ["--config=/etc/otelcol/config.yml"]
+    environment:
+      NEW_RELIC_LICENSE_KEY: ${NEW_RELIC_LICENSE_KEY}
+    volumes:
+      - ./otelcol-config.yml:/etc/otelcol/config.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    ports: ["9411:9411", "4318:4318"]
+    restart: unless-stopped
+
+  front-end:
+    image: weaveworksdemos/front-end:0.3.12
+    platform: linux/amd64
+    container_name: front-end
+    hostname: front-end
+    environment: { ZIPKIN: *zipkin }
+    ports: ["8079:8079"]
+    restart: unless-stopped
+
+  catalogue:
+    image: weaveworksdemos/catalogue:0.3.5
+    platform: linux/amd64
+    container_name: catalogue
+    hostname: catalogue
+    environment: { ZIPKIN: *zipkin }
+    restart: unless-stopped
+  catalogue-db:
+    image: weaveworksdemos/catalogue-db:0.3.0
+    platform: linux/amd64
+    container_name: catalogue-db
+    hostname: catalogue-db
+    environment: { MYSQL_ROOT_PASSWORD: fake_password, MYSQL_DATABASE: socksdb }
+    restart: unless-stopped
+
+  carts:
+    image: weaveworksdemos/carts:0.4.8
+    platform: linux/amd64
+    container_name: carts
+    hostname: carts
+    environment: { JAVA_OPTS: *jopts }
+    restart: unless-stopped
+  carts-db:
+    image: mongo:4.4
+    container_name: carts-db
+    hostname: carts-db
+    restart: unless-stopped
+
+  orders:
+    image: weaveworksdemos/orders:0.4.7
+    platform: linux/amd64
+    container_name: orders
+    hostname: orders
+    environment: { JAVA_OPTS: *jopts }
+    restart: unless-stopped
+  orders-db:
+    image: mongo:4.4
+    container_name: orders-db
+    hostname: orders-db
+    restart: unless-stopped
+
+  shipping:
+    image: weaveworksdemos/shipping:0.4.8
+    platform: linux/amd64
+    container_name: shipping
+    hostname: shipping
+    environment: { JAVA_OPTS: *jopts }
+    restart: unless-stopped
+  queue-master:
+    image: weaveworksdemos/queue-master:0.3.1
+    platform: linux/amd64
+    container_name: queue-master
+    hostname: queue-master
+    environment: { JAVA_OPTS: -Xms64m -Xmx160m -XX:+UseG1GC -Djava.security.egd=file:/dev/urandom }
+    restart: unless-stopped
+  rabbitmq:
+    image: rabbitmq:3.9-management
+    container_name: rabbitmq
+    hostname: rabbitmq
+    restart: unless-stopped
+
+  payment:
+    image: weaveworksdemos/payment:0.4.3
+    platform: linux/amd64
+    container_name: payment
+    hostname: payment
+    environment: { ZIPKIN: *zipkin }
+    restart: unless-stopped
+
+  user:
+    image: weaveworksdemos/user:0.4.4
+    platform: linux/amd64
+    container_name: user
+    hostname: user
+    environment: { ZIPKIN: *zipkin, MONGO_HOST: "user-db:27017" }
+    restart: unless-stopped
+  user-db:
+    image: weaveworksdemos/user-db:0.4.0
+    platform: linux/amd64
+    container_name: user-db
+    hostname: user-db
+    restart: unless-stopped
+
+  load-test:
+    image: weaveworksdemos/load-test:0.1.1
+    platform: linux/amd64
+    container_name: load-test
+    hostname: load-test
+    command: ["-d", "999999", "-h", "front-end:8079", "-c", "2", "-r", "60"]
+    depends_on: [front-end]
+    restart: unless-stopped
