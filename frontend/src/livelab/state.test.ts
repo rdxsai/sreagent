@@ -66,6 +66,12 @@ describe("reduce", () => {
     expect(s.phase).toBe("failed");
   });
 
+  it("reset returns a fresh view for a newly adopted run", () => {
+    const s = reduceAll(initialRunView(), frames);
+    const fresh = reduce(s, { seq: 0, event: "reset", data: {} });
+    expect(fresh).toEqual(initialRunView());
+  });
+
   it("does not mutate the previous state", () => {
     const base = initialRunView();
     const next = reduce(base, frames[0]);

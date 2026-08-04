@@ -52,6 +52,7 @@ export function initialRunView(): RunView {
 }
 
 export function reduce(state: RunView, frame: Frame): RunView {
+  if (frame.event === "reset") return initialRunView();
   if (frame.seq !== 0 && frame.seq <= state.lastSeq) return state;
   const next: RunView = { ...state, lastSeq: Math.max(state.lastSeq, frame.seq) };
   const d = frame.data ?? {};

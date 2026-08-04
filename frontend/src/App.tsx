@@ -1,11 +1,30 @@
 import { useEffect, useRef, useState } from "react";
-import { Activity, Play, Loader2, Info, Eye, Database, BellRing } from "lucide-react";
+import { Activity, Play, Loader2, Info, Eye, Database, BellRing, Radio } from "lucide-react";
 import { fetchScenarios, runScenario } from "./api";
 import type { AgentEvent, Scenario } from "./types";
 import { ReasoningStream } from "./components/ReasoningStream";
+import { LiveLabPage } from "./livelab/LiveLabPage";
 import { cn } from "./lib/utils";
 
+type Mode = "recorded" | "live";
+
 export default function App() {
+  const [mode, setMode] = useState<Mode>("recorded");
+  return (
+    <div className="flex h-full flex-col">
+      <Header mode={mode} onMode={setMode} />
+      {mode === "recorded" ? (
+        <RecordedDemo />
+      ) : (
+        <div className="mx-auto flex w-full max-w-[1600px] min-h-0 flex-1 flex-col px-6 py-4">
+          <LiveLabPage />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RecordedDemo() {
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [events, setEvents] = useState<AgentEvent[]>([]);
@@ -44,31 +63,28 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-full flex-col">
-      <Header />
-      <div className="mx-auto flex w-full max-w-7xl flex-1 gap-6 overflow-hidden px-6 py-5">
-        <Sidebar scenarios={scenarios} selectedId={selectedId} onSelect={select} disabled={running} />
-        <main className="flex min-w-0 flex-1 flex-col">
-          {selected ? (
-            <>
-              <ScenarioHeader scenario={selected} running={running} onRun={start} />
-              <div className="mt-4 min-h-0 flex-1 overflow-y-auto rounded-xl border border-slate-800 bg-slate-900/40 p-5">
-                <ReasoningStream events={events} running={running} />
-              </div>
-            </>
-          ) : (
-            <div className="flex flex-1 items-center justify-center text-slate-600">Loading scenarios…</div>
-          )}
-        </main>
-      </div>
+    <div className="mx-auto flex w-full max-w-7xl flex-1 gap-6 overflow-hidden px-6 py-5">
+      <Sidebar scenarios={scenarios} selectedId={selectedId} onSelect={select} disabled={running} />
+      <main className="flex min-w-0 flex-1 flex-col">
+        {selected ? (
+          <>
+            <ScenarioHeader scenario={selected} running={running} onRun={start} />
+            <div className="mt-4 min-h-0 flex-1 overflow-y-auto rounded-xl border border-slate-800 bg-slate-900/40 p-5">
+              <ReasoningStream events={events} running={running} />
+            </div>
+          </>
+        ) : (
+          <div className="flex flex-1 items-center justify-center text-slate-600">Loading scenarios…</div>
+        )}
+      </main>
     </div>
   );
 }
 
-function Header() {
+function Header({ mode, onMode }: { mode: Mode; onMode: (m: Mode) => void }) {
   return (
     <header className="border-b border-slate-800/80 bg-slate-950/80 px-6 py-3 backdrop-blur">
-      <div className="mx-auto flex w-full max-w-7xl items-center gap-3">
+      <div className="mx-auto flex w-full max-w-[1600px] items-center gap-3">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-500/15 text-sky-400">
           <Activity className="h-4 w-4" />
         </div>
@@ -76,16 +92,59 @@ function Header() {
           <h1 className="text-sm font-semibold text-slate-100">Sentinel</h1>
           <p className="text-[11px] text-slate-500">Autonomous SRE incident investigation</p>
         </div>
+        <nav className="ml-6 flex gap-1 rounded-lg border border-slate-800 bg-slate-900/60 p-0.5">
+          <ModeTab active={mode === "recorded"} onClick={() => onMode("recorded")}>
+            <Database className="h-3 w-3" /> Recorded incidents
+          </ModeTab>
+          <ModeTab active={mode === "live"} onClick={() => onMode("live")}>
+            <Radio className="h-3 w-3" /> Live lab
+          </ModeTab>
+        </nav>
         <div className="ml-auto flex items-center gap-4 text-[11px] text-slate-500">
-          <span className="inline-flex items-center gap-1.5">
-            <Database className="h-3.5 w-3.5" /> telemetry pre-recorded
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <BellRing className="h-3.5 w-3.5" /> alerts already fired
-          </span>
+          {mode === "recorded" ? (
+            <>
+              <span className="inline-flex items-center gap-1.5">
+                <Database className="h-3.5 w-3.5" /> telemetry pre-recorded
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <BellRing className="h-3.5 w-3.5" /> alerts already fired
+              </span>
+            </>
+          ) : (
+            <>
+              <span className="inline-flex items-center gap-1.5">
+                <Radio className="h-3.5 w-3.5" /> telemetry live via New Relic
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <BellRing className="h-3.5 w-3.5" /> fault injected on demand
+              </span>
+            </>
+          )}
         </div>
       </div>
     </header>
+  );
+}
+
+function ModeTab({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11.5px] font-medium transition",
+        active ? "bg-sky-500/15 text-sky-300" : "text-slate-500 hover:text-slate-300",
+      )}
+    >
+      {children}
+    </button>
   );
 }
 

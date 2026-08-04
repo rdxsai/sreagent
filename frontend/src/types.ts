@@ -18,6 +18,7 @@ export type AgentEvent = {
     | "subagent_spawn"
     | "subagent_done"
     | "finding"
+    | "report"
     | "terminal"
     | "done"
     | "error";
