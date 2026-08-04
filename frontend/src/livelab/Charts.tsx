@@ -143,6 +143,9 @@ function buildOption(
     },
     yAxis: {
       type: "value",
+      // container-boot transients can read thousands of percent for a minute;
+      // capping the axis keeps the fault step legible (tooltips show true values)
+      max: unit === "%" ? (v: { max: number }) => Math.min(Math.ceil(v.max), 500) : undefined,
       axisLabel: { color: INK_MUTED, fontSize: 10, formatter: `{value}${unit}` },
       splitLine: { lineStyle: { color: GRID } },
     },

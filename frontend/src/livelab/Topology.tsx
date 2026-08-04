@@ -1,9 +1,18 @@
 // The 13-service map, laid out with dagre — the same static topology the agent
 // receives. Node color tracks latest CPU; the culprit pulses when the report lands.
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Dagre from "@dagrejs/dagre";
-import { Background, Handle, Position, ReactFlow, type Edge, type Node, type NodeProps } from "@xyflow/react";
+import {
+  Background,
+  Handle,
+  Position,
+  ReactFlow,
+  type Edge,
+  type Node,
+  type NodeProps,
+  type ReactFlowInstance,
+} from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import type { RunView } from "./state";
 import type { TelemetrySeries, Topology as TopologyData } from "./types";
@@ -92,6 +101,16 @@ export function TopologyMap({
     [topology, cpuBySvc, run],
   );
 
+  // the fitView prop only fits once at init, which can race the initial page
+  // reflow (a large stream backlog rendering) and leave the viewport off in
+  // space; re-fit explicitly whenever the graph changes
+  const [inst, setInst] = useState<ReactFlowInstance | null>(null);
+  useEffect(() => {
+    if (!inst || !graph) return;
+    const raf = requestAnimationFrame(() => inst.fitView({ padding: 0.05 }));
+    return () => cancelAnimationFrame(raf);
+  }, [inst, graph]);
+
   if (!graph) return null;
   return (
     <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-3">
@@ -108,6 +127,7 @@ export function TopologyMap({
           nodes={graph.nodes}
           edges={graph.edges}
           nodeTypes={nodeTypes}
+          onInit={setInst}
           fitView
           proOptions={{ hideAttribution: true }}
           nodesDraggable={false}

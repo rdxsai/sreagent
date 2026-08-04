@@ -11,9 +11,12 @@ import time
 from pathlib import Path
 from typing import Callable
 
-# metric key in the response -> (NRQL select expression, Metric attribute)
+# metric key in the response -> NRQL select expression. The pinned collector
+# (otel/opentelemetry-collector-contrib:0.151.0) emits container.cpu.utilization
+# already in percent-of-core (verified live: a 3-hog fault reads ~175, idle ~1-5),
+# so no rescaling: what the chart shows is what New Relic stores.
 _METRICS = {
-    "cpu": "average(container.cpu.utilization) * 100",
+    "cpu": "average(container.cpu.utilization)",
     "mem": "average(container.memory.percent)",
 }
 
@@ -80,10 +83,10 @@ class TelemetryReader:
         return self._clock() - float(latest_ms) / 1000.0
 
     def cpu_now(self, service: str) -> float | None:
-        """Average CPU (% of one host core, can exceed 100) over the last 90s; the
+        """Average CPU (percent of a core, can exceed 100) over the last 90s; the
         recovery health callable (health = badness, drops when the fault clears)."""
         rows = self._nrql(
-            "SELECT average(container.cpu.utilization) * 100 AS p FROM Metric "
+            "SELECT average(container.cpu.utilization) AS p FROM Metric "
             f"WHERE container.name = '{service}' SINCE 90 seconds ago"
         )
         if not rows:
