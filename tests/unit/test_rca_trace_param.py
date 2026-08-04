@@ -42,6 +42,6 @@ def test_injected_logger_is_used_for_the_run(tmp_path, monkeypatch) -> None:
 
     # The injected logger's file is the run's trace path even though the run aborted
     # before any record: construction must not have replaced it with an internal one.
-    assert logger.path == tmp_path / "bridge.jsonl"
+    assert logger.path() == tmp_path / "bridge.jsonl"
     internal = tmp_path / "t.jsonl"
     assert not internal.exists(), "run_rca must not create its own logger when one is injected"
