@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess
 import sys
 import time
 from pathlib import Path
@@ -42,17 +41,13 @@ def cpu_pct(store_svc: str) -> float:
 
 
 def inject() -> None:
-    # Rosetta-emulated image: `timeout` returns 127 and `seq` is absent, so inject each hog
-    # as its own detached `yes` (one busy core each). cleanup() sweeps them with pkill.
-    for _ in range(HOGS):
-        subprocess.run(["docker", "exec", "-d", TARGET, "sh", "-c", "yes >/dev/null 2>&1"], check=True)
+    from labs.sockshop.faults import inject_cpu
+    inject_cpu(TARGET, hogs=HOGS)
 
 
 def cleanup() -> None:
-    # busybox pkill -x is unreliable here; plain `pkill yes` sweeps every hog.
-    for _ in range(3):
-        subprocess.run(["docker", "exec", TARGET, "pkill", "yes"],
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    from labs.sockshop.faults import clear_cpu
+    clear_cpu(TARGET)
 
 
 def main() -> int:
