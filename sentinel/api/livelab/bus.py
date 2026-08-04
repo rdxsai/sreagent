@@ -20,7 +20,8 @@ from sentinel.oss.trace import TraceLogger
 
 class Subscription:
     """One consumer's queue. `get` returns the next frame, or None once the bus is
-    closed and the backlog is drained."""
+    closed and the backlog is drained; a timeout with the bus still open raises
+    queue.Empty so an SSE loop can send a keepalive and keep waiting."""
 
     def __init__(self) -> None:
         self._q: "queue.Queue[dict | None]" = queue.Queue()
@@ -29,10 +30,7 @@ class Subscription:
         self._q.put(frame)
 
     def get(self, timeout: float | None = None) -> dict | None:
-        try:
-            return self._q.get(timeout=timeout)
-        except queue.Empty:
-            return None
+        return self._q.get(timeout=timeout)
 
 
 class EventBus:
