@@ -71,11 +71,13 @@ def run_rca(
     worker_concurrency: int = 3,
     worker_iters: int = 6,
     prefer_trace: bool = False,
+    trace: TraceLogger | None = None,
 ) -> RcaResult:
     client, preset = client_for(model)
     run_id = run_id or f"rca-{int(time.time())}"
     system = system or system_of(run_id)
-    trace = TraceLogger(Path(out_dir) / f"{run_id}.jsonl")
+    if trace is None:
+        trace = TraceLogger(Path(out_dir) / f"{run_id}.jsonl")
     root = TraceContext(run_id=run_id, agent_id="manager")
     usage: dict[str, int] = {"input": 0, "output": 0}
 

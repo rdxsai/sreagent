@@ -47,6 +47,50 @@ scripts/server                    # serves the app + API at http://localhost:800
 
 Open http://localhost:8000, pick an incident, and watch the agent investigate live. For frontend development with hot reload, run `scripts/server` and, in a second terminal, `npm run dev` inside `frontend/` (Vite proxies the API).
 
+## Live lab demo
+
+The Live lab tab runs a whole incident on a real system, end to end: boot the
+dockerized Sock Shop (13 services, telemetry to New Relic), inject a CPU fault
+into a chosen service, watch the charts degrade, watch the gpt-oss code-mode
+agent localize the root cause live (plan, parallel workers, the Python they
+write, their verdicts), then approve a gated `docker restart` from the page and
+watch recovery confirmed from live telemetry. Every run is journaled under
+`runs/dashboard/` and can be replayed through the identical UI (demo insurance
+for flaky networks).
+
+Two labs sit behind the dashboard: the Sock Shop (CPU faults via docker exec) and
+the OTel Demo (real feature-flag faults via flagd, checkout path in
+`SENTINEL_OTEL_DEMO_DIR`, default `~/otel-demo-sentinel`). Run one lab at a time:
+both pin container names like `payment` and `shipping`, so booting one while the
+other is up fails with a name conflict. Stop the other lab first
+(`docker compose -f labs/sockshop/docker-compose.yml down`, or `make stop` in the
+demo checkout).
+
+Two gotchas that live in the demo checkout, not this repo. First, the demo's
+default `DEMO_VERSION=latest` pulls mutable upstream images that drift from the
+pinned source (a fresh pull broke frontend-proxy outright); pin it in
+`.env.override`, e.g. `DEMO_VERSION=2.2.0`. Second, the New Relic export in
+`src/otel-collector/otelcol-config-extras.yml` carries an inlined license key;
+if you rotate keys, telemetry silently lands in the old account, so keep that
+key in sync with `.env`.
+
+Prerequisites: Docker running, and `.env` with `NEW_RELIC_LICENSE_KEY`,
+`NEW_RELIC_USER_KEY`, `NEW_RELIC_ACCOUNT_ID`, `OPEN_ROUTER_API_KEY`.
+
+```
+docker compose -f labs/sockshop/docker-compose.yml up -d   # or press Boot lab in the UI
+set -a; source .env; set +a
+scripts/server
+```
+
+A real run takes 12 to 18 minutes with the proven protocol (3m clean baseline,
+4m soak under fault, then the investigation) and costs a few cents. To rehearse
+the UI without docker, New Relic, or an LLM:
+
+```
+SENTINEL_LIVELAB_FAKE=1 scripts/server    # scripted run at 20x speed
+```
+
 ## How it works
 
 The recording pipeline (`labs/otel`) runs the OpenTelemetry Demo at a pinned commit under self-driven load, injects one feature flag at a known onset, captures telemetry from Prometheus (metrics), Jaeger (traces), and OpenSearch (logs), runs an alerting layer that fires a single UserFacingDegradation alert, and writes a sealed fixture: `public/` for the agent, `eval_only/` for the grader. The six recorded incidents live in `fixtures/`.

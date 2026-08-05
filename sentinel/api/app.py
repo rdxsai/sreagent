@@ -75,6 +75,21 @@ def create_app(on_alert: OnAlert = default_on_alert) -> FastAPI:
     _action_journal = ActionJournal(_Path("runs/actions/server.jsonl"))
     app.include_router(make_action_router(_action_journal))
 
+    # Live lab dashboard (Sock Shop): run control, SSE stream, telemetry, replay.
+    # Deps are built lazily per run, so mounting costs nothing without docker/keys.
+    # SENTINEL_LIVELAB_FAKE=1 swaps in scripted deps for UI rehearsal (no docker,
+    # no New Relic, no LLM; the whole run plays out at 20x).
+    import os as _os
+
+    from sentinel.api.livelab.router import make_livelab_router
+
+    if _os.environ.get("SENTINEL_LIVELAB_FAKE") == "1":
+        from sentinel.api.livelab.fakedeps import fake_deps_factory
+
+        app.include_router(make_livelab_router(deps_factory=fake_deps_factory))
+    else:
+        app.include_router(make_livelab_router())
+
     @app.post("/alert")
     async def alert(request: Request) -> dict[str, Any]:
         payload = await request.json()

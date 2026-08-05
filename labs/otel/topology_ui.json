@@ -1,0 +1,29 @@
+{
+  "note": "Display-only map for the dashboard, from the OTel Demo's documented architecture at the pinned checkout. The agent does NOT read this: it derives its graph from live spans (prefer_trace=True).",
+  "services": [
+    "load-generator", "frontend-proxy", "frontend", "image-provider", "ad", "cart",
+    "checkout", "currency", "product-catalog", "product-reviews", "recommendation",
+    "shipping", "quote", "email", "payment"
+  ],
+  "edges": [
+    ["load-generator", "frontend-proxy"],
+    ["frontend-proxy", "frontend"],
+    ["frontend-proxy", "image-provider"],
+    ["frontend", "ad"],
+    ["frontend", "cart"],
+    ["frontend", "checkout"],
+    ["frontend", "currency"],
+    ["frontend", "product-catalog"],
+    ["frontend", "product-reviews"],
+    ["frontend", "recommendation"],
+    ["frontend", "shipping"],
+    ["checkout", "cart"],
+    ["checkout", "currency"],
+    ["checkout", "email"],
+    ["checkout", "payment"],
+    ["checkout", "product-catalog"],
+    ["checkout", "shipping"],
+    ["recommendation", "product-catalog"],
+    ["shipping", "quote"]
+  ]
+}

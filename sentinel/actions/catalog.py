@@ -22,6 +22,9 @@ _TABLE: dict[str, list[tuple[str, dict, bool, str]]] = {
     "loss":   [("remove_impairment", {}, True, "low"), ("restart", {}, True, "low")],
     "socket": [("restart", {}, True, "low"), ("remove_impairment", {}, True, "low")],
     "error":  [("revert_change", {}, True, "medium"), ("restart", {}, True, "low")],
+    # flag-injected incidents (the live labs): the fix is clearing the injected flag,
+    # regardless of which symptom family the fault surfaced as
+    "flag_injected": [("remove_impairment", {}, True, "low"), ("restart", {}, True, "low")],
 }
 # signature -> the same lists (delay/loss present as latency+edge; resource covers cpu/mem/disk)
 _SIGNATURE_FALLBACK = {"resource": "cpu", "latency": "delay", "error": "error"}
@@ -31,7 +34,7 @@ _NOTIFY_ONLY = [("open_ticket", {}, True, "low"), ("page_oncall", {}, True, "low
 _DESCRIPTIONS = {
     "restart": "Restart {svc} to clear its impaired state.",
     "scale": "Scale {svc} to {replicas} replicas to shed load.",
-    "remove_impairment": "Clear the injected network fault on {svc}.",
+    "remove_impairment": "Clear the injected fault on {svc}.",
     "revert_change": "Revert the most recent change on {svc}.",
     "open_ticket": "Open an incident ticket for {svc}.",
     "page_oncall": "Page the on-call engineer for {svc}.",
