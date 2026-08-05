@@ -1,6 +1,8 @@
-"""Docker compose control for the Sock Shop lab. Thin, injectable wrappers: the
-state machine and router depend on this seam, tests inject a fake runner, and the
-real runner is subprocess.run."""
+"""Docker compose control for the labs. Thin, injectable wrappers: the state
+machine and router depend on this seam, tests inject a fake runner, and the real
+runner is subprocess.run. One Lab instance per lab, parameterized by compose file,
+app-service list, and (optionally) a boot command run in a working directory (the
+OTel Demo boots via its own `make start`)."""
 from __future__ import annotations
 
 import json
@@ -13,14 +15,25 @@ COMPOSE_FILE = Path("labs/sockshop/docker-compose.yml")
 
 
 class Lab:
-    def __init__(self, *, run=subprocess.run) -> None:
+    def __init__(self, *, run=subprocess.run, compose_file: Path = COMPOSE_FILE,
+                 services: tuple[str, ...] = APP_SERVICES,
+                 boot_cmd: list[str] | None = None, workdir: Path | None = None) -> None:
         self._run = run
+        self._compose_file = compose_file
+        self._services = services
+        self._boot_cmd = boot_cmd
+        self._workdir = workdir
 
     def _compose(self, *args: str, timeout: int = 180):
-        return self._run(["docker", "compose", "-f", str(COMPOSE_FILE), *args],
-                         capture_output=True, text=True, timeout=timeout)
+        cmd = ["docker", "compose", "-f", str(self._compose_file), *args]
+        return self._run(cmd, capture_output=True, text=True, timeout=timeout,
+                         **({"cwd": str(self._workdir)} if self._workdir else {}))
 
     def up(self) -> None:
+        if self._boot_cmd is not None:
+            self._run(self._boot_cmd, capture_output=True, text=True, timeout=900,
+                      **({"cwd": str(self._workdir)} if self._workdir else {}))
+            return
         self._compose("up", "-d", timeout=600)
 
     def ps(self) -> list[dict]:
@@ -40,9 +53,9 @@ class Lab:
                  "state": (r.get("State") or "unknown").lower()} for r in rows]
 
     def app_services(self) -> list[dict]:
-        """The 13 app services, each present (with its compose state) or 'missing'."""
+        """This lab's app services, each present (with its compose state) or 'missing'."""
         states = {row["name"]: row["state"] for row in self.ps()}
-        return [{"name": s, "state": states.get(s, "missing")} for s in APP_SERVICES]
+        return [{"name": s, "state": states.get(s, "missing")} for s in self._services]
 
     def daemon_up(self) -> bool:
         try:

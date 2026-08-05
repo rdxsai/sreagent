@@ -12,8 +12,8 @@ import json
 import queue
 import time
 from pathlib import Path
-from threading import Lock
-from typing import Callable, Literal
+from threading import Lock, Thread
+from typing import Any, Callable, Literal
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
@@ -44,6 +44,10 @@ class DecisionBody(BaseModel):
 
 class ClearFaultBody(BaseModel):
     scenario_id: str
+
+
+class BootBody(BaseModel):
+    lab: Literal["sock_shop", "otel_demo"] = "sock_shop"
 
 
 def default_deps_factory(run_dir: Path | None, scenario: Scenario | None = None) -> Deps:
@@ -136,8 +140,15 @@ def _sse(frame: dict) -> str:
     return f"id: {frame['seq']}\nevent: {frame['event']}\ndata: {json.dumps(frame['data'], default=str)}\n\n"
 
 
+def _default_labs_factory(lab_key: str):
+    from sentinel.api.livelab.adapters import make_lab
+
+    return make_lab(lab_key)
+
+
 def make_livelab_router(*, out_root: Path = Path("runs/dashboard"),
-                        deps_factory: Callable[[Path | None], Deps] = default_deps_factory,
+                        deps_factory: Callable[..., Deps] = default_deps_factory,
+                        labs_factory: Callable[[str], Any] = _default_labs_factory,
                         ) -> APIRouter:
     router = APIRouter(prefix="/live")
     registry = Registry(out_root, deps_factory)
@@ -151,10 +162,18 @@ def make_livelab_router(*, out_root: Path = Path("runs/dashboard"),
             ingest_age = deps.reader.ingest_age_s()
         except Exception:
             ingest_age = None
+        labs: dict[str, list[dict]] = {}
+        for key in ("sock_shop", "otel_demo"):
+            try:
+                labs[key] = labs_factory(key).app_services()
+            except Exception:
+                labs[key] = []
         return {
             "run": active.snapshot() if active is not None else None,
             "preflight": [{"name": c.name, "ok": c.ok, "detail": c.detail} for c in checks],
             "lab": {"services": deps.lab.app_services(), "ingest_age_s": ingest_age},
+            "labs": labs,
+            "ingest_age_s": ingest_age,
             "replays": list_replays(out_root),
             "scenarios": [{"id": s.id, "lab": s.lab, "label": s.label,
                            "fault_desc": s.fault_desc, "truth_service": s.truth_service,
@@ -314,9 +333,13 @@ def make_livelab_router(*, out_root: Path = Path("runs/dashboard"),
         return doc.get("services") or sorted({s for e in doc.get("edges", []) for s in e})
 
     @router.post("/lab/boot")
-    def boot() -> dict:
-        registry.shared.lab.up()
-        return {"ok": True}
+    def boot(body: BootBody | None = None) -> dict:
+        lab_key = body.lab if body is not None else "sock_shop"
+        lab = labs_factory(lab_key)
+        # `make start` on the demo takes minutes; boot in the background and let
+        # the status poll narrate progress
+        Thread(target=lab.up, name=f"boot-{lab_key}", daemon=True).start()
+        return {"ok": True, "booting": lab_key}
 
     @router.post("/lab/clear-fault")
     def clear_fault(body: ClearFaultBody) -> dict:

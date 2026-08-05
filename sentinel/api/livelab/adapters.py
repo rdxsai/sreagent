@@ -8,12 +8,34 @@ so both labs (and the test fakes) plug in identically.
 from __future__ import annotations
 
 import os
+import subprocess
+from pathlib import Path
 from typing import Callable
 
+from sentinel.api.livelab.lab import Lab
 from sentinel.api.livelab.scenarios import Scenario
 
 _FLAGD_URL_ENV = "SENTINEL_OTEL_FLAGD_UI_BASE_URL"
 _FLAGD_DEFAULT = "http://localhost:8081/feature"
+
+# the demo's app services at the pinned checkout (infra like flagd/collector excluded)
+OTEL_APP_SERVICES: tuple[str, ...] = (
+    "load-generator", "frontend-proxy", "frontend", "image-provider", "ad", "cart",
+    "checkout", "currency", "product-catalog", "product-reviews", "recommendation",
+    "shipping", "quote", "email", "payment",
+)
+
+
+def otel_demo_dir(env=os.environ) -> Path:
+    return Path(env.get("SENTINEL_OTEL_DEMO_DIR", str(Path.home() / "otel-demo-sentinel")))
+
+
+def make_lab(lab_key: str, *, run=subprocess.run, env=os.environ) -> Lab:
+    if lab_key == "sock_shop":
+        return Lab(run=run)
+    demo = otel_demo_dir(env)
+    return Lab(run=run, compose_file=demo / "compose.yaml", services=OTEL_APP_SERVICES,
+               boot_cmd=["make", "start"], workdir=demo)
 
 
 def _flagd():

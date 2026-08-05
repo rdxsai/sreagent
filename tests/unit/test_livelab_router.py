@@ -22,7 +22,8 @@ def harness(tmp_path):
     deps, world = make_deps(tmp_path, SHIPPING)
     app = FastAPI()
     app.include_router(make_livelab_router(out_root=tmp_path,
-                                           deps_factory=lambda run_dir, scenario=None: deps))
+                                           deps_factory=lambda run_dir, scenario=None: deps,
+                                           labs_factory=lambda key: world.lab))
     client = TestClient(app)
     return client, deps, world, tmp_path
 
@@ -182,7 +183,24 @@ def test_clear_fault_calls_clear_cpu(harness) -> None:
     assert client.post("/live/lab/clear-fault", json={"scenario_id": "nope"}).status_code == 422
 
 
-def test_boot_invokes_compose_up(harness) -> None:
+def test_boot_invokes_lab_up_in_background(harness) -> None:
     client, deps, world, _ = harness
-    assert client.post("/live/lab/boot").status_code == 200
-    assert world.lab.up_calls == 1
+    r = client.post("/live/lab/boot", json={"lab": "otel_demo"})
+    assert r.status_code == 200
+    assert r.json()["booting"] == "otel_demo"
+    wait_until(lambda: world.lab.up_calls == 1)
+
+
+def test_status_reports_both_labs(harness) -> None:
+    client, deps, world, _ = harness
+    body = client.get("/live/status").json()
+    assert set(body["labs"]) == {"sock_shop", "otel_demo"}
+    assert len(body["labs"]["sock_shop"]) == 13
+
+
+def test_topology_serves_the_otel_demo_graph(harness) -> None:
+    client, *_ = harness
+    body = client.get("/live/topology?lab=otel_demo").json()
+    assert len(body["services"]) == 15
+    assert ["checkout", "payment"] in body["edges"]
+    assert client.get("/live/topology?lab=nope").status_code == 404

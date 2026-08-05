@@ -76,3 +76,15 @@ def test_replay_reader_serves_last_journaled_frame_at_or_before(tmp_path) -> Non
     assert replay.at(2500)["fetched_at_ms"] == 2000
     assert replay.at(500)["fetched_at_ms"] == 1000     # nothing earlier: first frame
     assert replay.at(99_999)["fetched_at_ms"] == 3000  # past the end: last frame
+
+
+def test_series_includes_span_error_rate(tmp_path) -> None:
+    def nrql(q: str) -> list[dict]:
+        if "FROM Span" in q:
+            return [{"beginTimeSeconds": 100, "endTimeSeconds": 115,
+                     "facet": "payment", "p": 0.42, "service.name": "payment"}]
+        return []
+
+    reader = TelemetryReader(nrql, journal_dir=None, clock=lambda: 1.0)
+    out = reader.series(["payment"], since_ms=0, until_ms=200_000)
+    assert out["series"]["err"]["payment"] == [[100_000, 0.42]]

@@ -35,12 +35,13 @@ def _fold_rows(rows: list[dict]) -> dict[str, list[list[float]]]:
         if isinstance(facet, list):
             facet = facet[0] if facet else None
         if facet is None:
-            facet = row.get("container.name")
+            facet = row.get("container.name") or row.get("service.name")
         begin = row.get("beginTimeSeconds")
         if facet is None or begin is None:
             continue
         value = next((v for k, v in row.items()
-                      if k not in ("facet", "container.name", "beginTimeSeconds", "endTimeSeconds")
+                      if k not in ("facet", "container.name", "service.name",
+                                   "beginTimeSeconds", "endTimeSeconds")
                       and isinstance(v, (int, float))), None)
         if value is None:
             continue
@@ -68,6 +69,12 @@ class TelemetryReader:
                  f"FACET container.name TIMESERIES 15 seconds "
                  f"SINCE {since_ms} UNTIL {until_ms}")
             out["series"][key] = _fold_rows(self._nrql(q))
+        # per-service error rate from spans (empty for span-sparse labs like Sock Shop)
+        q = ("SELECT filter(count(*), WHERE otel.status_code = 'ERROR') / count(*) AS p "
+             f"FROM Span WHERE service.name IN ({_quoted(services)}) "
+             f"FACET service.name TIMESERIES 15 seconds "
+             f"SINCE {since_ms} UNTIL {until_ms}")
+        out["series"]["err"] = _fold_rows(self._nrql(q))
         if self._journal_path is not None:
             with self._journal_path.open("a", encoding="utf-8") as fh:
                 fh.write(json.dumps(out) + "\n")
