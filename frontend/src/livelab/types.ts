@@ -105,6 +105,7 @@ export type Status = {
   preflight: PreflightCheck[];
   lab: { services: LabService[]; ingest_age_s: number | null };
   labs: Record<string, LabService[]>;
+  boot: { lab: string; state: "booting" | "ok" | "failed"; detail: string; at_ms: number } | null;
   ingest_age_s: number | null;
   replays: { run_id: string; target: string; phase: string; preset: string; started_ms: number }[];
   scenarios: ScenarioInfo[];

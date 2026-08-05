@@ -62,6 +62,8 @@ export function LabPanel({
   const preflightOk = (status?.preflight ?? []).every((c) => c.ok || c.name === "lab");
   const failing = (status?.preflight ?? []).filter((c) => !c.ok && c.name !== "lab");
   const labUp = tiles.length > 0 && tiles.every((s) => s.state === "running");
+  const boot = status?.boot ?? null;
+  const booting = boot?.state === "booting" && boot.lab === lab;
 
   return (
     <div className="flex flex-col gap-3">
@@ -110,10 +112,24 @@ export function LabPanel({
         {!labUp && (
           <button
             onClick={onBoot}
-            className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-md border border-slate-700 bg-slate-800/60 px-3 py-1.5 text-[12.5px] text-slate-200 hover:bg-slate-800"
+            disabled={booting}
+            className={cn(
+              "mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-md border border-slate-700 bg-slate-800/60 px-3 py-1.5 text-[12.5px] text-slate-200 hover:bg-slate-800",
+              booting && "cursor-not-allowed opacity-60",
+            )}
           >
-            <Wrench className="h-3.5 w-3.5" /> Boot {LAB_NAMES[lab]}
+            {booting ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
+            ) : (
+              <Wrench className="h-3.5 w-3.5" />
+            )}
+            {booting ? "Booting… watch the tiles come up" : `Boot ${LAB_NAMES[lab]}`}
           </button>
+        )}
+        {boot?.state === "failed" && boot.lab === lab && (
+          <p className="mt-1.5 text-[11px] leading-snug text-rose-300/90">
+            Boot failed: {boot.detail}
+          </p>
         )}
       </section>
 

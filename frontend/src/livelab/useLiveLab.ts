@@ -18,6 +18,7 @@ export type LiveLab = {
   topology: Topology | null;
   lab: string;
   setLab: (lab: string) => void;
+  actionError: string | null;
   mode: "live" | "replay" | null;
   busy: boolean;
   start: (scenarioId: string, preset: string) => Promise<void>;
@@ -37,6 +38,7 @@ export function useLiveLab(): LiveLab {
   const [topology, setTopology] = useState<Topology | null>(null);
   const [busy, setBusy] = useState(false);
   const [lab, setLab] = useState("sock_shop");
+  const [actionError, setActionError] = useState<string | null>(null);
   const [run, dispatch] = useReducer(reduce, undefined, initialRunView);
   const streamRef = useRef<api.StreamHandle | null>(null);
   const runActive = runId != null && !run.done;
@@ -104,11 +106,14 @@ export function useLiveLab(): LiveLab {
 
   const start = useCallback(async (scenarioId: string, preset: string) => {
     setBusy(true);
+    setActionError(null);
     try {
       const { run_id } = await api.startRun(scenarioId, preset);
       setMode("live");
       setTelemetry(null);
       setRunId(run_id);
+    } catch (e) {
+      setActionError(String(e));
     } finally {
       setBusy(false);
     }
@@ -138,7 +143,12 @@ export function useLiveLab(): LiveLab {
   );
 
   const boot = useCallback(async () => {
-    await api.bootLab(lab);
+    setActionError(null);
+    try {
+      await api.bootLab(lab);
+    } catch (e) {
+      setActionError(String(e));
+    }
     refreshStatus();
   }, [lab, refreshStatus]);
 
@@ -155,6 +165,7 @@ export function useLiveLab(): LiveLab {
     topology,
     lab,
     setLab,
+    actionError,
     mode,
     busy,
     start,

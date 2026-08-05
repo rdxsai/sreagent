@@ -31,6 +31,11 @@ export function LiveLabPage() {
           Can't reach the Sentinel API: {lab.statusError}
         </div>
       )}
+      {lab.actionError && (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/[0.06] px-4 py-2 text-[12px] text-amber-200/80">
+          {lab.actionError}
+        </div>
+      )}
       <div className="grid min-h-0 flex-1 grid-cols-[280px_minmax(0,1fr)_minmax(360px,440px)] gap-3">
         <aside className="min-h-0 overflow-y-auto pr-0.5">
           <LabPanel

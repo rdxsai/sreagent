@@ -151,6 +151,7 @@ def make_livelab_router(*, out_root: Path = Path("runs/dashboard"),
                         ) -> APIRouter:
     router = APIRouter(prefix="/live")
     registry = Registry(out_root, deps_factory)
+    boot_holder: dict[str, dict | None] = {"boot": None}
 
     @router.get("/status")
     def status() -> dict:
@@ -172,6 +173,7 @@ def make_livelab_router(*, out_root: Path = Path("runs/dashboard"),
             "preflight": [{"name": c.name, "ok": c.ok, "detail": c.detail} for c in checks],
             "lab": {"services": deps.lab.app_services(), "ingest_age_s": ingest_age},
             "labs": labs,
+            "boot": boot_holder["boot"],
             "ingest_age_s": ingest_age,
             "replays": list_replays(out_root),
             "scenarios": [{"id": s.id, "lab": s.lab, "label": s.label,
@@ -334,10 +336,40 @@ def make_livelab_router(*, out_root: Path = Path("runs/dashboard"),
     @router.post("/lab/boot")
     def boot(body: BootBody | None = None) -> dict:
         lab_key = body.lab if body is not None else "sock_shop"
+        other_key = "otel_demo" if lab_key == "sock_shop" else "sock_shop"
         lab = labs_factory(lab_key)
+
+        def _running(l) -> bool:
+            try:
+                services = l.app_services()
+                return bool(services) and any(s["state"] == "running" for s in services)
+            except Exception:
+                return False
+
+        # both labs pin the same container names (payment, shipping): booting one
+        # while the other is up is a guaranteed compose failure, so refuse loudly
+        if not _running(lab) and _running(labs_factory(other_key)):
+            raise HTTPException(
+                status_code=409,
+                detail=f"the {other_key} lab is running and holds shared container "
+                       f"names; stop it before booting {lab_key}")
+
+        boot_holder["boot"] = {"lab": lab_key, "state": "booting", "detail": "",
+                               "at_ms": int(time.time() * 1000)}
+
+        def _boot() -> None:
+            try:
+                lab.up()
+                boot_holder["boot"] = {"lab": lab_key, "state": "ok", "detail": "",
+                                       "at_ms": int(time.time() * 1000)}
+            except Exception as exc:  # surfaced via status; a silent boot failure is the bug
+                boot_holder["boot"] = {"lab": lab_key, "state": "failed",
+                                       "detail": f"{type(exc).__name__}: {exc}",
+                                       "at_ms": int(time.time() * 1000)}
+
         # `make start` on the demo takes minutes; boot in the background and let
         # the status poll narrate progress
-        Thread(target=lab.up, name=f"boot-{lab_key}", daemon=True).start()
+        Thread(target=_boot, name=f"boot-{lab_key}", daemon=True).start()
         return {"ok": True, "booting": lab_key}
 
     @router.post("/lab/clear-fault")

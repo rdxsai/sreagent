@@ -220,3 +220,76 @@ def test_default_deps_factory_builds_the_scenario_lab(monkeypatch, tmp_path) -> 
     router_mod.default_deps_factory(tmp_path, scenario_by_id("otel-ad_high_cpu_live_001"))
     router_mod.default_deps_factory(None, None)
     assert labs_asked == ["otel_demo", "sock_shop"]
+
+
+def test_boot_refuses_when_the_other_lab_is_running(tmp_path) -> None:
+    """Booting one lab while the other holds the shared container names is a
+    guaranteed compose failure; the endpoint must say so instead of silently
+    spawning a doomed boot."""
+    from fastapi import FastAPI
+    from sentinel.api.livelab.router import make_livelab_router
+
+    deps, world = make_deps(tmp_path, SHIPPING)
+
+    class OtherLabUp:
+        def app_services(self):
+            return [{"name": "payment", "state": "running"}]
+
+        def up(self):
+            raise AssertionError("must not boot into a conflict")
+
+    class TargetLabDown:
+        def __init__(self):
+            self.up_calls = 0
+
+        def app_services(self):
+            return [{"name": "ad", "state": "missing"}]
+
+        def up(self):
+            self.up_calls += 1
+
+    target = TargetLabDown()
+    labs = {"sock_shop": OtherLabUp(), "otel_demo": target}
+    app = FastAPI()
+    app.include_router(make_livelab_router(out_root=tmp_path,
+                                           deps_factory=lambda run_dir, scenario=None: deps,
+                                           labs_factory=lambda key: labs[key]))
+    client = TestClient(app)
+
+    r = client.post("/live/lab/boot", json={"lab": "otel_demo"})
+    assert r.status_code == 409
+    assert "sock_shop" in r.json()["detail"]
+    assert target.up_calls == 0
+
+
+def test_boot_outcome_is_surfaced_in_status(harness) -> None:
+    client, deps, world, _ = harness
+    assert client.get("/live/status").json().get("boot") is None
+    client.post("/live/lab/boot", json={"lab": "otel_demo"})
+    wait_until(lambda: (client.get("/live/status").json().get("boot") or {}).get("state") == "ok")
+    boot = client.get("/live/status").json()["boot"]
+    assert boot["lab"] == "otel_demo"
+
+
+def test_boot_failure_is_surfaced_in_status(tmp_path) -> None:
+    from fastapi import FastAPI
+    from sentinel.api.livelab.router import make_livelab_router
+
+    deps, world = make_deps(tmp_path, SHIPPING)
+
+    class ExplodingLab:
+        def app_services(self):
+            return [{"name": "ad", "state": "missing"}]
+
+        def up(self):
+            raise RuntimeError("compose exploded")
+
+    labs = {"sock_shop": ExplodingLab(), "otel_demo": ExplodingLab()}
+    app = FastAPI()
+    app.include_router(make_livelab_router(out_root=tmp_path,
+                                           deps_factory=lambda run_dir, scenario=None: deps,
+                                           labs_factory=lambda key: labs[key]))
+    client = TestClient(app)
+    client.post("/live/lab/boot", json={"lab": "otel_demo"})
+    wait_until(lambda: (client.get("/live/status").json().get("boot") or {}).get("state") == "failed")
+    assert "compose exploded" in client.get("/live/status").json()["boot"]["detail"]
