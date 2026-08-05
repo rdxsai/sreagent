@@ -14,7 +14,7 @@ function healthOf(run: RunView): { health: Health; title: string; sub: string } 
     return {
       health: "recovered",
       title: "Recovered",
-      sub: `CPU on ${target} back to normal after the approved restart`,
+      sub: `${target} back to normal after the approved remediation`,
     };
   if (run.phase === "failed")
     return { health: "ended", title: "Run failed", sub: run.error ?? "see the stream for details" };
@@ -30,13 +30,13 @@ function healthOf(run: RunView): { health: Health; title: string; sub: string } 
   if (faultActive)
     return {
       health: "degraded",
-      title: "Degraded: CPU fault active",
-      sub: `${target} is pegged; user-facing latency climbing`,
+      title: "Degraded: injected fault active",
+      sub: run.scenario?.fault_desc ?? `fault active on ${target}`,
     };
   return {
     health: "operational",
     title: "All systems operational",
-    sub: "13 services steady under load",
+    sub: "services steady under load",
   };
 }
 

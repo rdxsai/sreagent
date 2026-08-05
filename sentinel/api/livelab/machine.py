@@ -144,6 +144,7 @@ class LiveRun:
         entry = {"phase": phase, "at_ms": int(self._deps.clock() * 1000), **detail}
         self._phases.append(entry)
         self.bus.emit("phase", {"run_id": self.run_id, "target": self.target,
+                                "scenario": self.snapshot()["scenario"],
                                 "timings": self.snapshot()["timings"], **entry})
         self._write_snapshot()
 

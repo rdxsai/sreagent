@@ -16,14 +16,16 @@ export type LiveLab = {
   run: RunView;
   telemetry: TelemetrySeries | null;
   topology: Topology | null;
+  lab: string;
+  setLab: (lab: string) => void;
   mode: "live" | "replay" | null;
   busy: boolean;
-  start: (target: string, preset: string) => Promise<void>;
+  start: (scenarioId: string, preset: string) => Promise<void>;
   replay: (sourceRunId: string) => Promise<void>;
   abort: () => Promise<void>;
   decide: (verb: "approve" | "deny", reason?: string) => Promise<void>;
   boot: () => Promise<void>;
-  clearFault: (target: string) => Promise<void>;
+  clearFault: (scenarioId: string) => Promise<void>;
 };
 
 export function useLiveLab(): LiveLab {
@@ -34,13 +36,15 @@ export function useLiveLab(): LiveLab {
   const [telemetry, setTelemetry] = useState<TelemetrySeries | null>(null);
   const [topology, setTopology] = useState<Topology | null>(null);
   const [busy, setBusy] = useState(false);
+  const [lab, setLab] = useState("sock_shop");
   const [run, dispatch] = useReducer(reduce, undefined, initialRunView);
   const streamRef = useRef<api.StreamHandle | null>(null);
   const runActive = runId != null && !run.done;
 
+  const activeLab = run.scenario?.lab ?? lab;
   useEffect(() => {
-    api.getTopology().then(setTopology).catch(() => setTopology(null));
-  }, []);
+    api.getTopology(activeLab).then(setTopology).catch(() => setTopology(null));
+  }, [activeLab]);
 
   const refreshStatus = useCallback(() => {
     api
@@ -98,10 +102,10 @@ export function useLiveLab(): LiveLab {
     };
   }, [runId, runActive, run.phase]);
 
-  const start = useCallback(async (target: string, preset: string) => {
+  const start = useCallback(async (scenarioId: string, preset: string) => {
     setBusy(true);
     try {
-      const { run_id } = await api.startRun(target, preset);
+      const { run_id } = await api.startRun(scenarioId, preset);
       setMode("live");
       setTelemetry(null);
       setRunId(run_id);
@@ -134,12 +138,12 @@ export function useLiveLab(): LiveLab {
   );
 
   const boot = useCallback(async () => {
-    await api.bootLab();
+    await api.bootLab(lab);
     refreshStatus();
-  }, [refreshStatus]);
+  }, [lab, refreshStatus]);
 
-  const clearFaultCb = useCallback(async (target: string) => {
-    await api.clearFault(target);
+  const clearFaultCb = useCallback(async (scenarioId: string) => {
+    await api.clearFault(scenarioId);
   }, []);
 
   return {
@@ -149,6 +153,8 @@ export function useLiveLab(): LiveLab {
     run,
     telemetry,
     topology,
+    lab,
+    setLab,
     mode,
     busy,
     start,

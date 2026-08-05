@@ -74,7 +74,7 @@ export function RemediationCard({
             ) : (
               <Check className="h-3.5 w-3.5" />
             )}
-            Approve restart
+            {a.kind === "remove_impairment" ? "Approve flag reset" : "Approve restart"}
           </button>
           <button
             onClick={() => decide("deny")}
@@ -108,7 +108,8 @@ export function RemediationCard({
           {outcome?.before != null && (
             <>
               {" "}
-              · CPU {Math.round(outcome.before)}% → {outcome.after != null ? `${Math.round(outcome.after)}%` : "…"}
+              · health {Number(outcome.before.toPrecision(3))} →{" "}
+              {outcome.after != null ? Number(outcome.after.toPrecision(3)) : "…"}
             </>
           )}
         </StatusLine>

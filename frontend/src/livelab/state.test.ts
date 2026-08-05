@@ -79,3 +79,20 @@ describe("reduce", () => {
     expect(next.phases).toHaveLength(1);
   });
 });
+
+describe("scenario tracking", () => {
+  it("captures the scenario carried on phase frames", () => {
+    const s = reduce(initialRunView(), {
+      seq: 1,
+      event: "phase",
+      data: {
+        phase: "baseline",
+        at_ms: 1,
+        target: "ad",
+        scenario: { id: "otel-ad_high_cpu_live_001", lab: "otel_demo", label: "adHighCpu (ad)", fault_desc: "flag", hero_metric: "cpu" },
+      },
+    });
+    expect(s.scenario?.lab).toBe("otel_demo");
+    expect(s.target).toBe("ad");
+  });
+});

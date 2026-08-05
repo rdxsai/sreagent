@@ -18,6 +18,7 @@ export type RunView = {
   phase: PhaseName | null;
   phases: { phase: PhaseName; at_ms: number; detail?: string }[];
   target: string | null;
+  scenario: { id: string; lab: string; label: string; fault_desc: string; hero_metric: string } | null;
   timings: Timings | null;
   window: { start_ms: number; end_ms: number; onset_s: number } | null;
   lab: { services: LabService[]; ingest_age_s: number | null } | null;
@@ -37,6 +38,7 @@ export function initialRunView(): RunView {
     phase: null,
     phases: [],
     target: null,
+    scenario: null,
     timings: null,
     window: null,
     lab: null,
@@ -61,6 +63,7 @@ export function reduce(state: RunView, frame: Frame): RunView {
       next.phase = d.phase;
       next.phases = [...state.phases, { phase: d.phase, at_ms: d.at_ms, detail: d.detail }];
       if (d.target) next.target = d.target;
+      if (d.scenario) next.scenario = d.scenario;
       if (d.timings) next.timings = d.timings;
       if (d.window) next.window = d.window;
       break;

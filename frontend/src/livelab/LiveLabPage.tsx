@@ -38,6 +38,8 @@ export function LiveLabPage() {
             run={lab.run}
             runActive={runActive}
             busy={lab.busy}
+            lab={lab.lab}
+            onLab={lab.setLab}
             onStart={lab.start}
             onReplay={lab.replay}
             onAbort={lab.abort}

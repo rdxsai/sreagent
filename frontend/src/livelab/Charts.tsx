@@ -185,9 +185,32 @@ function Chart({
   );
 }
 
+function toPercent(data: Record<string, [number, number][]> | undefined) {
+  if (!data) return undefined;
+  const out: Record<string, [number, number][]> = {};
+  for (const [svc, points] of Object.entries(data)) {
+    out[svc] = points.map(([t, v]) => [t, v * 100] as [number, number]);
+  }
+  return out;
+}
+
 export function Charts({ telemetry, run }: { telemetry: TelemetrySeries | null; run: RunView }) {
+  const err = telemetry?.series.err;
+  const hasErr = err != null && Object.values(err).some((pts) => pts.length > 0);
+  const errFirst = run.scenario?.hero_metric === "error";
+  const errChart = hasErr ? (
+    <Chart
+      key="err"
+      title="Request error rate"
+      caption="from spans, per service"
+      data={toPercent(err)}
+      unit="%"
+      run={run}
+    />
+  ) : null;
   return (
     <div className="flex flex-col gap-3">
+      {errFirst && errChart}
       <Chart
         title="Container CPU"
         caption="trails live by 60–90s (New Relic ingest)"
@@ -195,6 +218,7 @@ export function Charts({ telemetry, run }: { telemetry: TelemetrySeries | null; 
         unit="%"
         run={run}
       />
+      {!errFirst && errChart}
       <Chart title="Container memory" data={telemetry?.series.mem} unit="%" run={run} />
     </div>
   );

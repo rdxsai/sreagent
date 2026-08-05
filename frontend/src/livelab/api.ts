@@ -15,17 +15,18 @@ async function json<T>(res: Response): Promise<T> {
 }
 
 export const getStatus = () => fetch("/live/status").then((r) => json<Status>(r));
-export const getTopology = () => fetch("/live/topology").then((r) => json<Topology>(r));
+export const getTopology = (lab: string) =>
+  fetch(`/live/topology?lab=${encodeURIComponent(lab)}`).then((r) => json<Topology>(r));
 export const getSnapshot = (runId: string) =>
   fetch(`/live/runs/${runId}`).then((r) => json<RunSnapshot>(r));
 export const getTelemetry = (runId: string) =>
   fetch(`/live/telemetry?run_id=${encodeURIComponent(runId)}`).then((r) => json<TelemetrySeries>(r));
 
-export const startRun = (target: string, preset: string) =>
+export const startRun = (scenarioId: string, preset: string) =>
   fetch("/live/runs", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ target, preset }),
+    body: JSON.stringify({ scenario_id: scenarioId, preset }),
   }).then((r) => json<{ run_id: string }>(r));
 
 export const startReplay = (sourceRunId: string) =>
@@ -36,14 +37,18 @@ export const startReplay = (sourceRunId: string) =>
 export const abortRun = (runId: string) =>
   fetch(`/live/runs/${runId}/abort`, { method: "POST" }).then((r) => json<{ ok: boolean }>(r));
 
-export const bootLab = () =>
-  fetch("/live/lab/boot", { method: "POST" }).then((r) => json<{ ok: boolean }>(r));
+export const bootLab = (lab: string) =>
+  fetch("/live/lab/boot", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ lab }),
+  }).then((r) => json<{ ok: boolean }>(r));
 
-export const clearFault = (target: string) =>
+export const clearFault = (scenarioId: string) =>
   fetch("/live/lab/clear-fault", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ target }),
+    body: JSON.stringify({ scenario_id: scenarioId }),
   }).then((r) => json<{ ok: boolean }>(r));
 
 export const decide = (runId: string, verb: "approve" | "deny", approver: string, reason = "") =>

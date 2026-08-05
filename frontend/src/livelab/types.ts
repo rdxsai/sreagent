@@ -71,11 +71,22 @@ export type ActionFrame = {
 
 export type Recovery = { before: number | null; after: number | null; recovered: boolean };
 
+export type ScenarioInfo = {
+  id: string;
+  lab: string;
+  label: string;
+  fault_desc: string;
+  truth_service: string;
+  hero_metric: "cpu" | "error";
+  symptom: string;
+};
+
 export type RunSnapshot = {
   run_id: string;
   mode: "live" | "replay";
   source_run_id?: string;
   target: string;
+  scenario?: { id: string; lab: string; label: string; fault_desc: string; hero_metric: string };
   preset: string;
   timings: Timings;
   started_ms: number;
@@ -93,13 +104,19 @@ export type Status = {
   run: RunSnapshot | null;
   preflight: PreflightCheck[];
   lab: { services: LabService[]; ingest_age_s: number | null };
+  labs: Record<string, LabService[]>;
+  ingest_age_s: number | null;
   replays: { run_id: string; target: string; phase: string; preset: string; started_ms: number }[];
-  targets: string[];
+  scenarios: ScenarioInfo[];
   presets: Record<string, Timings>;
 };
 
 export type TelemetrySeries = {
-  series: { cpu?: Record<string, [number, number][]>; mem?: Record<string, [number, number][]> };
+  series: {
+    cpu?: Record<string, [number, number][]>;
+    mem?: Record<string, [number, number][]>;
+    err?: Record<string, [number, number][]>;
+  };
   fetched_at_ms: number;
 };
 
