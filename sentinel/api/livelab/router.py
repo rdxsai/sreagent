@@ -57,15 +57,14 @@ def default_deps_factory(run_dir: Path | None, scenario: Scenario | None = None)
     import os
 
     from sentinel.actions.live_executor import make_live_executor
-    from sentinel.api.livelab.adapters import make_clear, make_health, make_inject
-    from sentinel.api.livelab.lab import Lab
+    from sentinel.api.livelab.adapters import make_clear, make_health, make_inject, make_lab
     from sentinel.api.livelab.telemetry import TelemetryReader
     from sentinel.newrelic.client import NerdGraphClient
     from sentinel.newrelic.store import NewRelicStore
     from sentinel.oss.rca import run_rca
 
     client = NerdGraphClient.from_env()
-    lab = Lab()
+    lab = make_lab(scenario.lab if scenario is not None else "sock_shop")
     reader = TelemetryReader(client.nrql, journal_dir=run_dir)
     health = make_health(scenario, client.nrql) if scenario is not None else (lambda: None)
 

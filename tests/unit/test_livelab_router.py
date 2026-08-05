@@ -204,3 +204,19 @@ def test_topology_serves_the_otel_demo_graph(harness) -> None:
     assert len(body["services"]) == 15
     assert ["checkout", "payment"] in body["edges"]
     assert client.get("/live/topology?lab=nope").status_code == 404
+
+
+def test_default_deps_factory_builds_the_scenario_lab(monkeypatch, tmp_path) -> None:
+    """The regression that failed the first real OTel run: the factory hardcoded
+    the Sock Shop lab, so an otel scenario polled (and tried to boot) the wrong
+    compose stack."""
+    from sentinel.api.livelab import adapters, router as router_mod
+
+    labs_asked: list[str] = []
+    monkeypatch.setattr(adapters, "make_lab",
+                        lambda key, **kw: labs_asked.append(key) or object())
+    monkeypatch.setattr("sentinel.newrelic.client.NerdGraphClient.from_env",
+                        classmethod(lambda cls: type("C", (), {"nrql": staticmethod(lambda q: [])})()))
+    router_mod.default_deps_factory(tmp_path, scenario_by_id("otel-ad_high_cpu_live_001"))
+    router_mod.default_deps_factory(None, None)
+    assert labs_asked == ["otel_demo", "sock_shop"]
