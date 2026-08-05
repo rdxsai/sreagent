@@ -177,24 +177,25 @@ def _fake_run_rca(clock: VirtualClock) -> callable:
     return run_rca
 
 
-def fake_deps_factory(run_dir: Path | None) -> Deps:
+def fake_deps_factory(run_dir: Path | None, scenario=None) -> Deps:
     speed = float(os.environ.get("SENTINEL_LIVELAB_FAKE_SPEED", "20"))
     clock = VirtualClock(speed)
     world = FakeWorld(clock)
+    truth = scenario.truth_service if scenario is not None else "shipping"
     target_ref: dict = {}
     reader = FakeReader(world, target_ref, run_dir)
 
-    def inject_cpu(target: str, hogs: int = 3) -> None:
-        target_ref["target"] = target
+    def inject() -> None:
+        target_ref["target"] = truth
         world.inject_at = clock.now()
         world.cleared_at = None
 
-    def clear_cpu(target: str) -> None:
+    def clear() -> None:
         if world.cleared_at is None:
             world.cleared_at = clock.now()
 
     def store_factory(start_ms: int, end_ms: int, alerts: list):
-        return SimpleNamespace(fake_target=target_ref.get("target", "shipping"))
+        return SimpleNamespace(fake_target=target_ref.get("target", truth))
 
     class FakeExecutor:
         backend = "fake-live"
@@ -204,14 +205,15 @@ def fake_deps_factory(run_dir: Path | None) -> Deps:
 
         def execute(self, action) -> Outcome:
             before = reader.cpu_now(action.target_service)
-            clear_cpu(action.target_service)
+            clear()
             clock.sleep(60)
             return Outcome(ok=True, before=before,
                            after=reader.cpu_now(action.target_service), duration_s=3.0)
 
-    return Deps(lab=FakeLab(), reader=reader, inject_cpu=inject_cpu, clear_cpu=clear_cpu,
+    return Deps(lab=FakeLab(), reader=reader, inject=inject, clear=clear,
+                health_now=lambda: reader.cpu_now(truth),
                 store_factory=store_factory, run_rca=_fake_run_rca(clock),
-                executor_factory=lambda target: FakeExecutor(),
+                executor_factory=lambda scn: FakeExecutor(),
                 clock=clock.now, sleep=clock.sleep,
                 approval_ttl_s=600.0 * speed,  # ~10 real minutes to click Approve
                 env={"NEW_RELIC_USER_KEY": "fake", "NEW_RELIC_ACCOUNT_ID": "0",

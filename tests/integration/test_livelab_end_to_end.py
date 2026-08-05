@@ -10,6 +10,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from sentinel.api.livelab.router import make_livelab_router
+from sentinel.api.livelab.scenarios import scenario_by_id
 from tests.unit.test_livelab_machine import make_deps
 
 
@@ -35,14 +36,14 @@ def sse_events(text: str) -> list[tuple[str, dict]]:
 
 
 def test_live_run_then_replay(tmp_path) -> None:
-    deps, world = make_deps(tmp_path)
+    deps, world = make_deps(tmp_path, scenario_by_id("sockshop-cpu-shipping"))
     app = FastAPI()
     app.include_router(make_livelab_router(out_root=tmp_path,
-                                           deps_factory=lambda run_dir: deps))
+                                           deps_factory=lambda run_dir, scenario=None: deps))
     client = TestClient(app)
 
     # -- live run ------------------------------------------------------------
-    run_id = client.post("/live/runs", json={"target": "shipping", "preset": "quick"}).json()["run_id"]
+    run_id = client.post("/live/runs", json={"scenario_id": "sockshop-cpu-shipping", "preset": "quick"}).json()["run_id"]
     wait_until(lambda: client.get(f"/live/runs/{run_id}").json()["phase"] == "awaiting_approval")
 
     snap = client.get(f"/live/runs/{run_id}").json()
@@ -67,7 +68,7 @@ def test_live_run_then_replay(tmp_path) -> None:
     assert [e for e, _ in events][-1] == "done"
 
     # the injected fault was applied and swept; the executor really "restarted"
-    assert world.injected == [("shipping", 3)]
+    assert world.injected == ["shipping"]
     assert "shipping" in world.cleared
 
     # the action journal audit invariant holds: no unapproved executions

@@ -19,19 +19,21 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from labs.sockshop.faults import APP_SERVICES, VETTED_TARGETS
+from labs.sockshop.faults import APP_SERVICES
 from sentinel.api.livelab.machine import PRESETS, Deps, LiveRun
+from sentinel.api.livelab.scenarios import SCENARIOS, Scenario, scenario_by_id
 from sentinel.api.livelab.preflight import run_preflight
 from sentinel.api.livelab.replay import ReplayRun, list_replays, start_replay
 from sentinel.api.livelab.telemetry import ReplayTelemetryReader
 
-_TOPOLOGY_PATH = Path("rcaeval/topology/sock_shop.json")
-
-Target = Literal["shipping", "catalogue", "payment", "orders"]
+_TOPOLOGY_PATHS = {
+    "sock_shop": Path("rcaeval/topology/sock_shop.json"),
+    "otel_demo": Path("labs/otel/topology_ui.json"),
+}
 
 
 class StartRunBody(BaseModel):
-    target: Target
+    scenario_id: str
     preset: Literal["proven", "quick"] = "proven"
 
 
@@ -41,16 +43,17 @@ class DecisionBody(BaseModel):
 
 
 class ClearFaultBody(BaseModel):
-    target: Target
+    scenario_id: str
 
 
-def default_deps_factory(run_dir: Path | None) -> Deps:
+def default_deps_factory(run_dir: Path | None, scenario: Scenario | None = None) -> Deps:
     """The real dependencies: docker, New Relic, the gpt-oss agent, LiveExecutor.
-    Imported lazily so the module (and its tests) load without any of them."""
+    Imported lazily so the module (and its tests) load without any of them. With
+    scenario=None only the scenario-independent parts (lab, reader) are usable."""
     import os
 
-    from labs.sockshop.faults import clear_cpu, inject_cpu
     from sentinel.actions.live_executor import make_live_executor
+    from sentinel.api.livelab.adapters import make_clear, make_health, make_inject
     from sentinel.api.livelab.lab import Lab
     from sentinel.api.livelab.telemetry import TelemetryReader
     from sentinel.newrelic.client import NerdGraphClient
@@ -60,19 +63,23 @@ def default_deps_factory(run_dir: Path | None) -> Deps:
     client = NerdGraphClient.from_env()
     lab = Lab()
     reader = TelemetryReader(client.nrql, journal_dir=run_dir)
+    health = make_health(scenario, client.nrql) if scenario is not None else (lambda: None)
 
     def store_factory(start_ms: int, end_ms: int, alerts: list):
         return NewRelicStore(client, window_start_ms=start_ms, window_end_ms=end_ms,
                              alerts=alerts)
 
-    def executor_factory(target: str):
+    def executor_factory(scn: Scenario):
         return make_live_executor(
-            health=lambda svc: reader.cpu_now(svc),
+            health=lambda _svc: health(),
             restart=lambda container: lab.restart(container),
             settle_s=60.0,
         )
 
-    return Deps(lab=lab, reader=reader, inject_cpu=inject_cpu, clear_cpu=clear_cpu,
+    return Deps(lab=lab, reader=reader,
+                inject=make_inject(scenario) if scenario is not None else (lambda: None),
+                clear=make_clear(scenario) if scenario is not None else (lambda: None),
+                health_now=health,
                 store_factory=store_factory, run_rca=run_rca,
                 executor_factory=executor_factory,
                 approval_ttl_s=float(os.environ.get("ACTION_APPROVAL_TTL_S", "600")))
@@ -81,7 +88,8 @@ def default_deps_factory(run_dir: Path | None) -> Deps:
 class Registry:
     """All runs this process has started, plus the single-flight lock."""
 
-    def __init__(self, out_root: Path, deps_factory: Callable[[Path | None], Deps]) -> None:
+    def __init__(self, out_root: Path,
+                 deps_factory: Callable[[Path | None, Scenario | None], Deps]) -> None:
         self.out_root = out_root
         self.deps_factory = deps_factory
         self._runs: dict[str, LiveRun | ReplayRun] = {}
@@ -91,7 +99,7 @@ class Registry:
     @property
     def shared(self) -> Deps:
         if self._shared_deps is None:
-            self._shared_deps = self.deps_factory(None)
+            self._shared_deps = self.deps_factory(None, None)
         return self._shared_deps
 
     def active(self) -> LiveRun | ReplayRun | None:
@@ -100,13 +108,13 @@ class Registry:
     def get(self, run_id: str) -> LiveRun | ReplayRun | None:
         return self._runs.get(run_id)
 
-    def start_live(self, target: str, preset: str) -> LiveRun:
+    def start_live(self, scenario: Scenario, preset: str) -> LiveRun:
         with self._lock:
             if self.active() is not None:
                 raise HTTPException(status_code=409, detail="a run is already in flight")
-            run_id = f"live-{target}-{int(time.time() * 1000)}"
-            deps = self.deps_factory(self.out_root / run_id)
-            run = LiveRun(run_id, target, preset, deps, out_root=self.out_root)
+            run_id = f"live-{scenario.id}-{int(time.time() * 1000)}"
+            deps = self.deps_factory(self.out_root / run_id, scenario)
+            run = LiveRun(run_id, scenario, preset, deps, out_root=self.out_root)
             self._runs[run_id] = run
             run.start()
             return run
@@ -148,18 +156,29 @@ def make_livelab_router(*, out_root: Path = Path("runs/dashboard"),
             "preflight": [{"name": c.name, "ok": c.ok, "detail": c.detail} for c in checks],
             "lab": {"services": deps.lab.app_services(), "ingest_age_s": ingest_age},
             "replays": list_replays(out_root),
-            "targets": list(VETTED_TARGETS),
+            "scenarios": [{"id": s.id, "lab": s.lab, "label": s.label,
+                           "fault_desc": s.fault_desc, "truth_service": s.truth_service,
+                           "hero_metric": s.hero_metric, "symptom": s.symptom}
+                          for s in SCENARIOS],
             "presets": {name: vars(t) for name, t in PRESETS.items()},
         }
 
     @router.get("/topology")
-    def topology() -> dict:
-        edges = json.loads(_TOPOLOGY_PATH.read_text()).get("edges", [])
-        return {"services": list(APP_SERVICES), "edges": edges}
+    def topology(lab: str = "sock_shop") -> dict:
+        path = _TOPOLOGY_PATHS.get(lab)
+        if path is None or not path.exists():
+            raise HTTPException(status_code=404, detail=f"no topology for lab {lab!r}")
+        doc = json.loads(path.read_text())
+        edges = doc.get("edges", [])
+        services = doc.get("services") or sorted({s for e in edges for s in e})
+        return {"services": services, "edges": edges}
 
     @router.post("/runs")
     def start_run(body: StartRunBody) -> dict:
-        run = registry.start_live(body.target, body.preset)
+        scenario = scenario_by_id(body.scenario_id)
+        if scenario is None:
+            raise HTTPException(status_code=422, detail=f"unknown scenario {body.scenario_id!r}")
+        run = registry.start_live(scenario, body.preset)
         return {"run_id": run.run_id}
 
     @router.post("/replays/{source_run_id}")
@@ -274,14 +293,25 @@ def make_livelab_router(*, out_root: Path = Path("runs/dashboard"),
         if run is not None and run.is_active:
             deps = getattr(run, "_deps")
             until_ms = int(deps.clock() * 1000)
-            return deps.reader.series(list(APP_SERVICES), snap["started_ms"], until_ms)
+            return deps.reader.series(_chart_services(run.scenario.lab),
+                                      snap["started_ms"], until_ms)
         if journal.exists():
             return ReplayTelemetryReader(journal).at(2**62)
         if run is not None:
             deps = getattr(run, "_deps")
             last = snap["phases"][-1]["at_ms"] if snap.get("phases") else int(deps.clock() * 1000)
-            return deps.reader.series(list(APP_SERVICES), snap["started_ms"], last)
+            return deps.reader.series(_chart_services(run.scenario.lab),
+                                      snap["started_ms"], last)
         return {"series": {}, "fetched_at_ms": 0}
+
+    def _chart_services(lab: str) -> list[str]:
+        if lab == "sock_shop":
+            return list(APP_SERVICES)
+        path = _TOPOLOGY_PATHS.get(lab)
+        if path is None or not path.exists():
+            return []
+        doc = json.loads(path.read_text())
+        return doc.get("services") or sorted({s for e in doc.get("edges", []) for s in e})
 
     @router.post("/lab/boot")
     def boot() -> dict:
@@ -290,7 +320,10 @@ def make_livelab_router(*, out_root: Path = Path("runs/dashboard"),
 
     @router.post("/lab/clear-fault")
     def clear_fault(body: ClearFaultBody) -> dict:
-        registry.shared.clear_cpu(body.target)
+        scenario = scenario_by_id(body.scenario_id)
+        if scenario is None:
+            raise HTTPException(status_code=422, detail=f"unknown scenario {body.scenario_id!r}")
+        registry.deps_factory(None, scenario).clear()
         return {"ok": True}
 
     return router

@@ -31,10 +31,6 @@ from sentinel.api.livelab.bus import BroadcastTraceLogger, EventBus
 from sentinel.api.livelab.preflight import run_preflight
 from sentinel.fixtures.schemas import DerivedAlert
 
-SYMPTOM = ("Customers report the Sock Shop storefront is sluggish: browsing the "
-           "product catalogue and loading pages feels slow. Overall the system is degraded.")
-
-_RECOVERED_CPU_PCT = 50.0
 _RECOVERY_POLLS = 12
 _RECOVERY_POLL_S = 15.0
 
@@ -56,16 +52,16 @@ PRESETS: dict[str, Timings] = {
 class Deps:
     lab: Any
     reader: Any
-    inject_cpu: Callable[..., None]
-    clear_cpu: Callable[[str], None]
+    inject: Callable[[], None]                  # scenario-bound fault injection
+    clear: Callable[[], None]                   # scenario-bound fault hygiene
+    health_now: Callable[[], float | None]      # scenario-bound badness (recovery signal)
     store_factory: Callable[[int, int, list], Any]
     run_rca: Callable[..., Any]
-    executor_factory: Callable[[str], Any]
+    executor_factory: Callable[[Any], Any]      # scenario -> Executor
     clock: Callable[[], float] = time.time
     sleep: Callable[[float], None] = time.sleep
     env: Any = field(default_factory=lambda: os.environ)
     approval_ttl_s: float = 600.0
-    hogs: int = 3
 
 
 class _Aborted(Exception):
@@ -75,10 +71,11 @@ class _Aborted(Exception):
 class LiveRun:
     mode = "live"
 
-    def __init__(self, run_id: str, target: str, preset: str, deps: Deps, *,
+    def __init__(self, run_id: str, scenario: Any, preset: str, deps: Deps, *,
                  out_root: Path) -> None:
         self.run_id = run_id
-        self.target = target
+        self.scenario = scenario
+        self.target = scenario.truth_service
         self.preset = preset
         self.timings = PRESETS[preset]
         self._deps = deps
@@ -129,6 +126,9 @@ class LiveRun:
     def snapshot(self) -> dict:
         return {
             "run_id": self.run_id, "mode": self.mode, "target": self.target,
+            "scenario": {"id": self.scenario.id, "lab": self.scenario.lab,
+                         "label": self.scenario.label, "fault_desc": self.scenario.fault_desc,
+                         "hero_metric": self.scenario.hero_metric},
             "preset": self.preset,
             "timings": {"baseline_s": self.timings.baseline_s,
                         "soak_s": self.timings.soak_s, "lag_s": self.timings.lag_s},
@@ -179,14 +179,13 @@ class LiveRun:
         try:
             self._preflight()
             self._boot()
-            deps.clear_cpu(self.target)  # sweep residue so the baseline is clean
+            deps.clear()  # sweep residue so the baseline is clean
             t0_ms = int(deps.clock() * 1000)
             self._emit_phase("baseline", detail=f"{self.timings.baseline_s}s clean window")
             self._wait(self.timings.baseline_s)
 
-            self._emit_phase("injecting",
-                             detail=f"{deps.hogs} CPU hogs into {self.target}")
-            deps.inject_cpu(self.target, hogs=deps.hogs)
+            self._emit_phase("injecting", detail=self.scenario.fault_desc)
+            deps.inject()
             self._inject_at_ms = int(deps.clock() * 1000)
             self._emit_lab()
 
@@ -204,7 +203,7 @@ class LiveRun:
             self._emit_phase("failed", detail=str(exc))
         finally:
             try:
-                deps.clear_cpu(self.target)
+                deps.clear()
             except Exception:
                 pass
             self._write_snapshot()
@@ -247,22 +246,23 @@ class LiveRun:
         self._window = {"start_ms": t0_ms, "end_ms": window_end_ms, "onset_s": onset}
         self._emit_phase("investigating", window=self._window)
 
+        symptom = self.scenario.symptom
         alert = DerivedAlert(alertname="ServiceDegraded", severity="warning",
                              starts_at_second=onset, labels={"tier": "user_facing"},
-                             annotations={"summary": SYMPTOM}, value=1.0, expr="live",
-                             fingerprint=f"live-sockshop-{self.target}-cpu")
+                             annotations={"summary": symptom}, value=1.0, expr="live",
+                             fingerprint=f"live-{self.scenario.id}")
         store = deps.store_factory(t0_ms, window_end_ms, [alert])
         incident = (
-            f"Symptom: {SYMPTOM}\n"
+            f"Symptom: {symptom}\n"
             f"Recording window: seconds 0 to {window_s}; the incident onset is around second {onset}.\n"
             "This is a LIVE microservices system (many services). Investigate the telemetry and "
             "determine which single service is the root cause and the failure type."
         )
         trace = BroadcastTraceLogger(self._dir / "agent.jsonl", self.bus)
         result = deps.run_rca(store, incident=incident, out_dir=str(self._dir),
-                              run_id=self.run_id, system="sock_shop", onset=onset,
-                              backend="local", worker_concurrency=2, prefer_trace=False,
-                              trace=trace)
+                              run_id=self.run_id, system=self.scenario.system, onset=onset,
+                              backend="local", worker_concurrency=2,
+                              prefer_trace=self.scenario.prefer_trace, trace=trace)
         synthesis = result.synthesis or {}
         self._report = {
             "root_cause_service": result.root_cause_service,
@@ -273,7 +273,7 @@ class LiveRun:
             "graph_source": result.graph.get("source"),
             "graph_edges": len(result.graph.get("edges", [])),
             "usage": result.usage,
-            "hit": result.root_cause_service == self.target,
+            "hit": result.root_cause_service in self.scenario.accepted,
         }
         self._emit_phase("report")
         self.bus.emit("report", self._report)
@@ -282,11 +282,12 @@ class LiveRun:
     def _propose(self, result):
         synthesis = result.synthesis or {}
         justification = synthesis.get("justification", "")
-        executor = self._deps.executor_factory(self.target)
+        executor = self._deps.executor_factory(self.scenario)
+        signature = {"cpu": "resource", "error": "error"}.get(self.scenario.hero_metric, "resource")
         actions = suggest_actions(
             target_service=result.root_cause_service or self.target,
-            fault_type=synthesis.get("fault_type"),
-            signature="resource",
+            fault_type=self.scenario.remediation_key or synthesis.get("fault_type"),
+            signature=signature,
             citations=[justification] if justification else [],
             confident=True,
             executor=executor,
@@ -341,8 +342,8 @@ class LiveRun:
         self._action = {"action": action.model_dump(), "status": "execute_result",
                         "ok": gate.executed, "outcome": outcome}
         self.bus.emit("action", self._action)
-        recovered = before is not None and after is not None and after < before * 0.5
-        self._recovery = {"before": before, "after": after, "recovered": recovered}
+        self._recovery = {"before": before, "after": after,
+                          "recovered": self._is_recovered(before, after)}
         self.bus.emit("recovery", self._recovery)
 
         self._emit_phase("recovering")
@@ -351,7 +352,17 @@ class LiveRun:
                 break
             self._check_abort()
             deps.sleep(_RECOVERY_POLL_S)
-            cpu = deps.reader.cpu_now(self.target)
-            self._recovery = {"before": before, "after": cpu,
-                              "recovered": cpu is not None and cpu < _RECOVERED_CPU_PCT}
+            value = deps.health_now()
+            self._recovery = {"before": before, "after": value,
+                              "recovered": self._is_recovered(before, value)}
             self.bus.emit("recovery", self._recovery)
+
+    def _is_recovered(self, before: float | None, value: float | None) -> bool:
+        """Absolute threshold when the scenario pins one; otherwise relative to the
+        badness captured at approval time (scale-proof for unpinned metrics)."""
+        if value is None:
+            return False
+        threshold = self.scenario.recovered_below
+        if threshold is not None:
+            return value < threshold
+        return before is not None and value < before / 3

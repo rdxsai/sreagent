@@ -11,15 +11,18 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from sentinel.api.livelab.router import make_livelab_router
+from sentinel.api.livelab.scenarios import scenario_by_id
 from tests.unit.test_livelab_machine import FakeExecutor, make_deps
+
+SHIPPING = scenario_by_id("sockshop-cpu-shipping")
 
 
 @pytest.fixture()
 def harness(tmp_path):
-    deps, world = make_deps(tmp_path)
+    deps, world = make_deps(tmp_path, SHIPPING)
     app = FastAPI()
     app.include_router(make_livelab_router(out_root=tmp_path,
-                                           deps_factory=lambda run_dir: deps))
+                                           deps_factory=lambda run_dir, scenario=None: deps))
     client = TestClient(app)
     return client, deps, world, tmp_path
 
@@ -34,7 +37,7 @@ def wait_until(pred, timeout: float = 5.0) -> None:
 
 
 def start_and_finish_run(client, *, target: str = "shipping", decision: str = "approve"):
-    r = client.post("/live/runs", json={"target": target, "preset": "quick"})
+    r = client.post("/live/runs", json={"scenario_id": f"sockshop-cpu-{target}", "preset": "quick"})
     assert r.status_code == 200
     run_id = r.json()["run_id"]
     wait_until(lambda: client.get(f"/live/runs/{run_id}").json()["phase"]
@@ -53,7 +56,10 @@ def test_status_reports_preflight_lab_and_no_run(harness) -> None:
     assert {c["name"] for c in body["preflight"]} >= {"docker", "lab", "new_relic_keys"}
     assert len(body["lab"]["services"]) == 13
     assert body["replays"] == []
-    assert body["targets"] == ["shipping", "catalogue", "payment", "orders"]
+    labs = {s["lab"] for s in body["scenarios"]}
+    assert labs == {"sock_shop", "otel_demo"}
+    assert {s["truth_service"] for s in body["scenarios"] if s["lab"] == "sock_shop"} == {
+        "shipping", "catalogue", "payment", "orders"}
     assert set(body["presets"]) == {"proven", "quick"}
 
 
@@ -67,9 +73,9 @@ def test_run_lifecycle_and_single_flight(harness) -> None:
         real_sleep(s)
 
     deps.sleep = gated_sleep
-    r = client.post("/live/runs", json={"target": "shipping", "preset": "quick"})
+    r = client.post("/live/runs", json={"scenario_id": "sockshop-cpu-shipping", "preset": "quick"})
     run_id = r.json()["run_id"]
-    assert client.post("/live/runs", json={"target": "orders", "preset": "quick"}).status_code == 409
+    assert client.post("/live/runs", json={"scenario_id": "sockshop-cpu-orders", "preset": "quick"}).status_code == 409
     snap = client.get(f"/live/runs/{run_id}").json()
     assert snap["mode"] == "live" and snap["target"] == "shipping"
     blocker.set()
@@ -77,13 +83,13 @@ def test_run_lifecycle_and_single_flight(harness) -> None:
     assert client.post(f"/live/runs/{run_id}/approve", json={"approver": "sid"}).status_code == 200
     wait_until(lambda: client.get(f"/live/runs/{run_id}").json()["phase"] == "done")
     # once finished, a new run may start
-    assert client.post("/live/runs", json={"target": "orders", "preset": "quick"}).status_code == 200
+    assert client.post("/live/runs", json={"scenario_id": "sockshop-cpu-orders", "preset": "quick"}).status_code == 200
 
 
-def test_invalid_target_and_preset_rejected(harness) -> None:
+def test_invalid_scenario_and_preset_rejected(harness) -> None:
     client, *_ = harness
-    assert client.post("/live/runs", json={"target": "carts-db", "preset": "quick"}).status_code == 422
-    assert client.post("/live/runs", json={"target": "shipping", "preset": "warp"}).status_code == 422
+    assert client.post("/live/runs", json={"scenario_id": "sockshop-cpu-carts-db", "preset": "quick"}).status_code == 422
+    assert client.post("/live/runs", json={"scenario_id": "sockshop-cpu-shipping", "preset": "warp"}).status_code == 422
 
 
 def test_finished_run_snapshot_and_stream_served_from_disk(harness) -> None:
@@ -106,7 +112,7 @@ def test_finished_run_snapshot_and_stream_served_from_disk(harness) -> None:
 
 def test_live_stream_delivers_frames_until_done(harness) -> None:
     client, deps, world, _ = harness
-    r = client.post("/live/runs", json={"target": "shipping", "preset": "quick"})
+    r = client.post("/live/runs", json={"scenario_id": "sockshop-cpu-shipping", "preset": "quick"})
     run_id = r.json()["run_id"]
     wait_until(lambda: client.get(f"/live/runs/{run_id}").json()["phase"] == "awaiting_approval")
     client.post(f"/live/runs/{run_id}/deny", json={"approver": "t", "reason": "n"})
@@ -121,7 +127,7 @@ def test_abort_cancels_active_run(harness) -> None:
     blocker = threading.Event()
     real_sleep = deps.sleep
     deps.sleep = lambda s: (blocker.wait(0.05), real_sleep(s))[-1]
-    run_id = client.post("/live/runs", json={"target": "shipping", "preset": "proven"}).json()["run_id"]
+    run_id = client.post("/live/runs", json={"scenario_id": "sockshop-cpu-shipping", "preset": "proven"}).json()["run_id"]
     assert client.post(f"/live/runs/{run_id}/abort").status_code == 200
     blocker.set()
     wait_until(lambda: client.get(f"/live/runs/{run_id}").json()["phase"] == "cancelled")
@@ -171,9 +177,9 @@ def test_topology_serves_the_static_graph(harness) -> None:
 
 def test_clear_fault_calls_clear_cpu(harness) -> None:
     client, deps, world, _ = harness
-    assert client.post("/live/lab/clear-fault", json={"target": "shipping"}).status_code == 200
+    assert client.post("/live/lab/clear-fault", json={"scenario_id": "sockshop-cpu-shipping"}).status_code == 200
     assert "shipping" in world.cleared
-    assert client.post("/live/lab/clear-fault", json={"target": "nope"}).status_code == 422
+    assert client.post("/live/lab/clear-fault", json={"scenario_id": "nope"}).status_code == 422
 
 
 def test_boot_invokes_compose_up(harness) -> None:
