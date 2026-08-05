@@ -201,6 +201,8 @@ def fake_deps_factory(run_dir: Path | None, scenario=None) -> Deps:
         backend = "fake-live"
 
         def render(self, action) -> str:
+            if action.kind == "remove_impairment":
+                return "flagd: reset all feature flags to off"
             return f"docker restart {action.target_service}"
 
         def execute(self, action) -> Outcome:
