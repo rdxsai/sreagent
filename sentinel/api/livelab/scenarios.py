@@ -72,8 +72,13 @@ _OTEL_CONTAINER = {"adservice": "ad", "ad": "ad", "productcatalog": "product-cat
 
 # (spec id, hero metric, health nrql, recovered_below)
 _OTEL_MENU: tuple[tuple[str, str, str, float | None], ...] = (
-    # cpu scale of the demo's collector export is not pinned, so recovery is relative
-    ("ad_high_cpu_live_001", "cpu", _cpu_health("ad"), None),
+    # the demo's container.cpu series is an integrating gauge (decays over tens of
+    # minutes after a fault clears, verified live), so recovery reads the ad
+    # service's own instantaneous JVM gauge instead: ~0 idle, ~0.36 under fault,
+    # drops within seconds of the flag reset
+    ("ad_high_cpu_live_001", "cpu",
+     "SELECT average(jvm.cpu.recent_utilization) AS p FROM Metric "
+     "WHERE service.name = 'ad' SINCE 90 seconds ago", 0.10),
     ("payment_failure_live_001", "error", _error_rate_health("payment"), 0.05),
 )
 

@@ -180,13 +180,13 @@ def test_happy_path_approve_execute_recover(tmp_path) -> None:
     assert deps.run_rca.calls[0]["prefer_trace"] is False
 
 
-def test_otel_scenario_elects_flag_reset_and_relative_recovery(tmp_path) -> None:
-    # executor settle leaves badness barely moved; the recovering loop's later
-    # health polls confirm via the relative rule (no absolute cpu scale pinned)
-    executor = FakeExecutor(before=1.8, after=1.5)
+def test_otel_scenario_elects_flag_reset_and_gauge_recovery(tmp_path) -> None:
+    # executor settle leaves the JVM gauge still warm; the recovering loop's
+    # later polls confirm against the scenario's absolute threshold (0.10)
+    executor = FakeExecutor(before=0.36, after=0.30)
     deps, world = make_deps(tmp_path, OTEL_AD, executor=executor,
                             run_rca=fake_run_rca_factory("ad"),
-                            health_values=[1.4, 0.2, 0.2])
+                            health_values=[0.29, 0.02, 0.02])
     run = LiveRun("r-ad", OTEL_AD, "quick", deps, out_root=tmp_path)
     run.start()
     wait_for_phase(run, "awaiting_approval")
@@ -197,12 +197,30 @@ def test_otel_scenario_elects_flag_reset_and_relative_recovery(tmp_path) -> None
     assert action_frames[0]["action"]["kind"] == "remove_impairment"
     assert executor.executed == ["remove_impairment"]
     recovery = frames_of(run, "recovery")
-    assert recovery[0]["recovered"] is False          # 1.5 is not < 1.8/3
-    assert recovery[-1]["recovered"] is True          # 0.2 < 1.8/3
+    assert recovery[0]["recovered"] is False          # 0.30 is not < 0.10
+    assert recovery[-1]["recovered"] is True          # 0.02 < 0.10
     assert frames_of(run, "report")[0]["hit"] is True
     assert deps.run_rca.calls[0]["system"] == "online_boutique"
     assert deps.run_rca.calls[0]["prefer_trace"] is True
     assert "ad" in world.injected and "ad" in world.cleared
+
+
+def test_relative_recovery_rule_when_no_threshold_pinned(tmp_path) -> None:
+    from dataclasses import replace
+
+    scenario = replace(OTEL_AD, recovered_below=None)
+    deps, world = make_deps(tmp_path, scenario, run_rca=fake_run_rca_factory("ad"),
+                            executor=FakeExecutor(before=1.8, after=1.5),
+                            health_values=[1.4, 0.2, 0.2])
+    run = LiveRun("r-rel", scenario, "quick", deps, out_root=tmp_path)
+    run.start()
+    wait_for_phase(run, "awaiting_approval")
+    run.approve("tester")
+    run.join(timeout=5)
+
+    recovery = frames_of(run, "recovery")
+    assert recovery[0]["recovered"] is False          # 1.5 is not < 1.8/3
+    assert recovery[-1]["recovered"] is True          # 0.2 < 1.8/3
 
 
 def test_window_math_uses_baseline_onset_and_lag(tmp_path) -> None:

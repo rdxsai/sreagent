@@ -28,8 +28,10 @@ def test_otel_scenarios_come_from_the_live_specs() -> None:
     assert ad.system == "online_boutique"
     assert ad.prefer_trace is True
     assert ad.hero_metric == "cpu"
-    assert ad.recovered_below is None  # relative recovery: demo cpu scale unpinned
-    assert "container.name = 'ad'" in ad.health_nrql
+    # instantaneous JVM gauge (the container.cpu series integrates and decays too
+    # slowly to confirm recovery, verified live)
+    assert ad.recovered_below == 0.10
+    assert "jvm.cpu.recent_utilization" in ad.health_nrql
 
     pay = otel["otel-payment_failure_live_001"]
     assert pay.fault_kind == "paymentFailure"
